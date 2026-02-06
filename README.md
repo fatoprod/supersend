@@ -93,7 +93,51 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 
 - Node.js 20+
 - Firebase CLI (`npm install -g firebase-tools`)
+- GitHub CLI (`gh`) — opcional, mas recomendado
 - Conta Firebase com projeto Blaze
+
+### Contas e Autenticação
+
+O projeto requer login em duas plataformas via CLI. **Sempre verifique se está logado na conta correta antes de qualquer operação.**
+
+#### Firebase CLI
+
+```bash
+# Verificar conta atual
+firebase login:list
+
+# Conta correta: fatosocialdigital@gmail.com
+# Se estiver na conta errada:
+firebase logout
+firebase login
+```
+
+> O projeto Firebase é `studio-9597335049-1a59a` e pertence à conta `fatosocialdigital@gmail.com`.
+
+#### GitHub CLI / Git
+
+```bash
+# Verificar conta atual
+gh auth status
+
+# Conta correta: fatoprod
+# Se estiver na conta errada:
+gh auth login
+```
+
+> O repositório é `fatoprod/supersend`. Se o `git push` falhar com erro 403, provavelmente o credential manager está usando outra conta GitHub. Execute `gh auth login` para corrigir.
+
+#### Google Cloud CLI (gcloud)
+
+Necessário apenas para operações avançadas (criar bancos Firestore nomeados, buckets, etc.):
+
+```bash
+# Verificar conta atual
+gcloud auth list
+
+# Conta correta: fatosocialdigital@gmail.com
+gcloud auth login
+```
 
 ### Instalação
 
