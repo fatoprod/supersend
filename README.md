@@ -51,11 +51,11 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 
 ### Firestore Database
 
-- **Nome do banco**: `supersend`
-- **Frontend**: `getFirestore(app, "supersend")` em `src/lib/firebase.ts`
-- **Functions**: `getFirestore("supersend")` de `firebase-admin/firestore`
-- **firebase.json**: `"database": "supersend"` na seção `firestore`
-- **Deploy de rules/indexes**: Aplica automaticamente ao banco `supersend` (não ao `(default)`)
+- **Nome do banco**: `supersend-bd`
+- **Frontend**: `getFirestore(app, "supersend-bd")` em `src/lib/firebase.ts`
+- **Functions**: `getFirestore("supersend-bd")` de `firebase-admin/firestore`
+- **firebase.json**: `"database": "supersend-bd"` na seção `firestore`
+- **Deploy de rules/indexes**: Aplica automaticamente ao banco `supersend-bd` (não ao `(default)`)
 
 ### Storage Bucket
 
@@ -221,7 +221,7 @@ Após o deploy, ativar no Firebase Console:
 |---------|-------|
 | **URL** | https://supersendapp.web.app |
 | **Projeto Firebase** | `studio-9597335049-1a59a` |
-| **Firestore Database** | `supersend` (nomeado) |
+| **Firestore Database** | `supersend-bd` (nomeado) |
 | **Storage Bucket** | `gs://supersend-studio-9597335049-1a59a` |
 | **Functions Codebase** | `supersend` |
 | **Hosting Target** | `supersend` → site `supersendapp` |

@@ -8,7 +8,7 @@ import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
 admin.initializeApp();
 
 // Export named Firestore database instance
-export const db = getFirestore("supersend");
+export const db = getFirestore("supersend-bd");
 
 // ============ Auth Functions ============
 

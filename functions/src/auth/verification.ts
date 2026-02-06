@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { sendEmail } from "../email/mailgun";
 
 function getDb() {
-  return getFirestore("supersend");
+  return getFirestore("supersend-bd");
 }
 
 /**
