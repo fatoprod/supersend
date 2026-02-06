@@ -4,8 +4,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -87,18 +85,6 @@ export function useAuth() {
     }
   };
 
-  // Sign in with Google
-  const signInWithGoogle = async () => {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    }
-  };
-
   // Sign out
   const signOutUser = async () => {
     await signOut(auth);
@@ -141,7 +127,6 @@ export function useAuth() {
     isAuthenticated,
     signIn,
     signUp,
-    signInWithGoogle,
     signOut: signOutUser,
     verifyEmailCode,
     resendVerificationEmail,
