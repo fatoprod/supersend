@@ -1,7 +1,9 @@
 import * as admin from "firebase-admin";
 import { sendEmail } from "../email/mailgun";
 
-const db = admin.firestore();
+function getDb() {
+  return admin.firestore();
+}
 
 /**
  * Generate a 6-digit verification code
@@ -21,7 +23,7 @@ export async function sendVerificationEmail(
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
   // Store verification code in Firestore
-  await db.collection("users").doc(userId).set(
+  await getDb().collection("users").doc(userId).set(
     {
       email,
       emailVerified: false,
@@ -78,7 +80,7 @@ export async function verifyEmailCode(
   userId: string,
   code: string
 ): Promise<{ success: boolean; error?: string }> {
-  const userRef = db.collection("users").doc(userId);
+  const userRef = getDb().collection("users").doc(userId);
   const userDoc = await userRef.get();
 
   if (!userDoc.exists) {

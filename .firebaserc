@@ -1,5 +1,15 @@
 {
   "projects": {
-    "default": "supersend-app"
-  }
+    "default": "studio-9597335049-1a59a"
+  },
+  "targets": {
+    "studio-9597335049-1a59a": {
+      "hosting": {
+        "supersend": [
+          "supersendapp"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
