@@ -1,32 +1,37 @@
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
-import { TrendingUp, TrendingDown, Mail, Eye, MousePointer, UserMinus, AlertCircle } from "lucide-react";
+import { Mail, Eye, MousePointer, UserMinus, AlertCircle, Loader2 } from "lucide-react";
 import { useI18n } from "../i18n";
-
-const analyticsData = {
-  overview: {
-    emailsSent: 45234,
-    emailsSentChange: 18.2,
-    openRate: 32.4,
-    openRateChange: -2.1,
-    clickRate: 8.7,
-    clickRateChange: 1.3,
-    unsubscribeRate: 0.8,
-    unsubscribeRateChange: -0.2,
-    bounceRate: 1.2,
-    bounceRateChange: 0.1,
-  },
-  topCampaigns: [
-    { name: "Product Launch", sent: 3400, openRate: 34.0, clickRate: 6.9 },
-    { name: "Welcome Series", sent: 1250, openRate: 33.8, clickRate: 7.1 },
-    { name: "Newsletter #23", sent: 5100, openRate: 28.5, clickRate: 5.2 },
-    { name: "Flash Sale", sent: 4200, openRate: 42.1, clickRate: 12.3 },
-    { name: "Re-engagement", sent: 890, openRate: 18.9, clickRate: 3.1 },
-  ],
-};
+import { useAnalyticsData } from "../hooks";
 
 export function AnalyticsPage() {
   const { t } = useI18n();
+  const { data: analytics, isLoading } = useAnalyticsData();
+
+  if (isLoading) {
+    return (
+      <>
+        <Header title={t.analytics.title} subtitle={t.analytics.subtitle} />
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </>
+    );
+  }
+
+  const data = analytics || {
+    emailsSent: 0,
+    emailsSentChange: 0,
+    openRate: 0,
+    openRateChange: 0,
+    clickRate: 0,
+    clickRateChange: 0,
+    unsubscribeRate: 0,
+    unsubscribeRateChange: 0,
+    bounceRate: 0,
+    bounceRateChange: 0,
+    topCampaigns: [],
+  };
 
   return (
     <>
@@ -47,14 +52,8 @@ export function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-text-muted">{t.dashboard.emailsSent}</p>
                   <p className="text-xl font-bold text-text">
-                    {analyticsData.overview.emailsSent.toLocaleString()}
+                    {data.emailsSent.toLocaleString()}
                   </p>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3 text-success" />
-                    <span className="text-xs text-success">
-                      +{analyticsData.overview.emailsSentChange}%
-                    </span>
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -69,14 +68,8 @@ export function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-text-muted">{t.dashboard.openRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {analyticsData.overview.openRate}%
+                    {data.openRate}%
                   </p>
-                  <div className="flex items-center gap-1">
-                    <TrendingDown className="h-3 w-3 text-error" />
-                    <span className="text-xs text-error">
-                      {analyticsData.overview.openRateChange}%
-                    </span>
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -91,14 +84,8 @@ export function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-text-muted">{t.analytics.clickRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {analyticsData.overview.clickRate}%
+                    {data.clickRate}%
                   </p>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3 text-success" />
-                    <span className="text-xs text-success">
-                      +{analyticsData.overview.clickRateChange}%
-                    </span>
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -113,14 +100,8 @@ export function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-text-muted">{t.analytics.unsubscribeRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {analyticsData.overview.unsubscribeRate}%
+                    {data.unsubscribeRate}%
                   </p>
-                  <div className="flex items-center gap-1">
-                    <TrendingDown className="h-3 w-3 text-success" />
-                    <span className="text-xs text-success">
-                      {analyticsData.overview.unsubscribeRateChange}%
-                    </span>
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -135,21 +116,15 @@ export function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-text-muted">{t.analytics.bounceRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {analyticsData.overview.bounceRate}%
+                    {data.bounceRate}%
                   </p>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3 text-error" />
-                    <span className="text-xs text-error">
-                      +{analyticsData.overview.bounceRateChange}%
-                    </span>
-                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Chart and Top Campaigns */}
+        {/* Top Campaigns */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Chart Placeholder */}
           <Card>
@@ -169,39 +144,43 @@ export function AnalyticsPage() {
               <CardTitle>{t.analytics.topCampaigns}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border text-left text-sm text-text-muted">
-                      <th className="pb-3 font-medium">{t.dashboard.campaign}</th>
-                      <th className="pb-3 font-medium text-right">{t.dashboard.sent}</th>
-                      <th className="pb-3 font-medium text-right">{t.analytics.openPercent}</th>
-                      <th className="pb-3 font-medium text-right">{t.analytics.clickPercent}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analyticsData.topCampaigns.map((campaign, index) => (
-                      <tr
-                        key={index}
-                        className="border-b border-border/50 last:border-0"
-                      >
-                        <td className="py-3 font-medium text-text">
-                          {campaign.name}
-                        </td>
-                        <td className="py-3 text-right text-text-muted">
-                          {campaign.sent.toLocaleString()}
-                        </td>
-                        <td className="py-3 text-right text-text-muted">
-                          {campaign.openRate}%
-                        </td>
-                        <td className="py-3 text-right text-text-muted">
-                          {campaign.clickRate}%
-                        </td>
+              {data.topCampaigns.length === 0 ? (
+                <p className="py-8 text-center text-text-muted">No completed campaigns yet</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border text-left text-sm text-text-muted">
+                        <th className="pb-3 font-medium">{t.dashboard.campaign}</th>
+                        <th className="pb-3 font-medium text-right">{t.dashboard.sent}</th>
+                        <th className="pb-3 font-medium text-right">{t.analytics.openPercent}</th>
+                        <th className="pb-3 font-medium text-right">{t.analytics.clickPercent}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.topCampaigns.map((campaign, index) => (
+                        <tr
+                          key={index}
+                          className="border-b border-border/50 last:border-0"
+                        >
+                          <td className="py-3 font-medium text-text">
+                            {campaign.name}
+                          </td>
+                          <td className="py-3 text-right text-text-muted">
+                            {campaign.sent.toLocaleString()}
+                          </td>
+                          <td className="py-3 text-right text-text-muted">
+                            {campaign.openRate}%
+                          </td>
+                          <td className="py-3 text-right text-text-muted">
+                            {campaign.clickRate}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
