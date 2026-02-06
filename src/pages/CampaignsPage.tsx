@@ -3,6 +3,7 @@ import { Header } from "../components/layout";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
 import { Plus, Search, MoreHorizontal, Play, Pause, Eye, Copy } from "lucide-react";
 import type { CampaignStatus } from "../types";
+import { useI18n } from "../i18n";
 
 interface Campaign {
   id: string;
@@ -67,6 +68,7 @@ const statusColors: Record<CampaignStatus, string> = {
 };
 
 export function CampaignsPage() {
+  const { t } = useI18n();
   const [filter, setFilter] = useState<CampaignStatus | "all">("all");
 
   const filteredCampaigns =
@@ -77,31 +79,39 @@ export function CampaignsPage() {
   return (
     <>
       <Header
-        title="Campaigns"
-        subtitle="Create and manage your email campaigns"
+        title={t.campaigns.title}
+        subtitle={t.campaigns.subtitle}
       />
 
       <div className="p-6">
         {/* Actions Bar */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
-            {(["all", "draft", "scheduled", "completed"] as const).map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  filter === status
-                    ? "bg-primary text-white"
-                    : "bg-surface-light text-text-muted hover:text-text"
-                }`}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
+            {(["all", "draft", "scheduled", "completed"] as const).map((status) => {
+              const statusLabels: Record<string, string> = {
+                all: t.campaigns.all,
+                draft: t.dashboard.draft,
+                scheduled: t.dashboard.scheduled,
+                completed: t.dashboard.completed,
+              };
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    filter === status
+                      ? "bg-primary text-white"
+                      : "bg-surface-light text-text-muted hover:text-text"
+                  }`}
+                >
+                  {statusLabels[status]}
+                </button>
+              );
+            })}
           </div>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            New Campaign
+            {t.campaigns.newCampaign}
           </Button>
         </div>
 
@@ -112,7 +122,14 @@ export function CampaignsPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[campaign.status]}`}>
-                    {campaign.status}
+                    {{
+                      completed: t.dashboard.completed,
+                      scheduled: t.dashboard.scheduled,
+                      draft: t.dashboard.draft,
+                      processing: t.dashboard.processing,
+                      failed: t.dashboard.failed,
+                      paused: t.dashboard.paused,
+                    }[campaign.status]}
                   </span>
                   <button className="rounded-lg p-1 text-text-muted opacity-0 transition-opacity hover:bg-surface-light hover:text-text group-hover:opacity-100">
                     <MoreHorizontal className="h-4 w-4" />
@@ -125,10 +142,10 @@ export function CampaignsPage() {
               </CardHeader>
               <CardContent>
                 <div className="mb-4 flex items-center gap-4 text-sm text-text-muted">
-                  <span>{campaign.recipientCount.toLocaleString()} recipients</span>
+                  <span>{campaign.recipientCount.toLocaleString()} {t.campaigns.recipients}</span>
                   {campaign.scheduledAt && (
                     <span>
-                      Scheduled: {new Date(campaign.scheduledAt).toLocaleDateString()}
+                      {t.dashboard.scheduled}: {new Date(campaign.scheduledAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>
@@ -139,19 +156,19 @@ export function CampaignsPage() {
                       <p className="text-lg font-semibold text-text">
                         {campaign.stats.sent.toLocaleString()}
                       </p>
-                      <p className="text-xs text-text-muted">Sent</p>
+                      <p className="text-xs text-text-muted">{t.dashboard.sent}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-semibold text-text">
                         {((campaign.stats.opened / campaign.stats.sent) * 100).toFixed(1)}%
                       </p>
-                      <p className="text-xs text-text-muted">Opened</p>
+                      <p className="text-xs text-text-muted">{t.dashboard.opened}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-semibold text-text">
                         {((campaign.stats.clicked / campaign.stats.sent) * 100).toFixed(1)}%
                       </p>
-                      <p className="text-xs text-text-muted">Clicked</p>
+                      <p className="text-xs text-text-muted">{t.dashboard.clicked}</p>
                     </div>
                   </div>
                 )}
@@ -161,7 +178,7 @@ export function CampaignsPage() {
                     <>
                       <Button size="sm" className="flex-1">
                         <Play className="mr-1 h-3 w-3" />
-                        Send
+                        {t.campaigns.send}
                       </Button>
                       <Button size="sm" variant="secondary">
                         <Eye className="h-4 w-4" />
@@ -172,7 +189,7 @@ export function CampaignsPage() {
                     <>
                       <Button size="sm" variant="secondary" className="flex-1">
                         <Pause className="mr-1 h-3 w-3" />
-                        Pause
+                        {t.campaigns.pause}
                       </Button>
                       <Button size="sm" variant="secondary">
                         <Eye className="h-4 w-4" />
@@ -183,7 +200,7 @@ export function CampaignsPage() {
                     <>
                       <Button size="sm" variant="secondary" className="flex-1">
                         <Eye className="mr-1 h-3 w-3" />
-                        View Report
+                        {t.campaigns.viewReport}
                       </Button>
                       <Button size="sm" variant="secondary">
                         <Copy className="h-4 w-4" />
@@ -201,13 +218,13 @@ export function CampaignsPage() {
             <div className="mb-4 rounded-full bg-surface-light p-6">
               <Search className="h-8 w-8 text-text-muted" />
             </div>
-            <h3 className="mb-2 text-lg font-medium text-text">No campaigns found</h3>
+            <h3 className="mb-2 text-lg font-medium text-text">{t.campaigns.noCampaigns}</h3>
             <p className="mb-6 text-text-muted">
-              Create your first campaign to get started
+              {t.campaigns.createFirstCampaign}
             </p>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              New Campaign
+              {t.campaigns.newCampaign}
             </Button>
           </div>
         )}

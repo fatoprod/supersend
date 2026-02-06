@@ -2,6 +2,7 @@ import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
 import { Button } from "../components/ui";
 import { Plus, FileText, MoreHorizontal, Copy, Trash2, Edit } from "lucide-react";
+import { useI18n } from "../i18n";
 
 interface Template {
   id: string;
@@ -40,11 +41,13 @@ const mockTemplates: Template[] = [
 ];
 
 export function TemplatesPage() {
+  const { t } = useI18n();
+
   return (
     <>
       <Header
-        title="Templates"
-        subtitle="Create reusable email templates"
+        title={t.templates.title}
+        subtitle={t.templates.subtitle}
       />
 
       <div className="p-6">
@@ -52,7 +55,7 @@ export function TemplatesPage() {
         <div className="mb-6 flex justify-end">
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            New Template
+            {t.templates.newTemplate}
           </Button>
         </div>
 
@@ -76,15 +79,15 @@ export function TemplatesPage() {
               </CardHeader>
               <CardContent>
                 <p className="mb-4 text-sm text-text-muted">
-                  Subject: <span className="text-text">{template.subject}</span>
+                  {t.templates.subject} <span className="text-text">{template.subject}</span>
                 </p>
                 <p className="mb-4 text-xs text-text-muted">
-                  Last updated: {template.updatedAt}
+                  {t.templates.lastUpdated} {template.updatedAt}
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" className="flex-1">
                     <Edit className="mr-1 h-3 w-3" />
-                    Edit
+                    {t.common.edit}
                   </Button>
                   <Button size="sm" variant="secondary">
                     <Copy className="h-4 w-4" />
@@ -103,9 +106,9 @@ export function TemplatesPage() {
               <div className="mb-4 rounded-full bg-surface-light p-4">
                 <Plus className="h-8 w-8 text-text-muted" />
               </div>
-              <p className="font-medium text-text">Create New Template</p>
+              <p className="font-medium text-text">{t.templates.createNewTemplate}</p>
               <p className="mt-1 text-sm text-text-muted">
-                Start from scratch or use a preset
+                {t.templates.startFromScratch}
               </p>
             </CardContent>
           </Card>

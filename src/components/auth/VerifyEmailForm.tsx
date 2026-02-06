@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Mail, RefreshCw } from "lucide-react";
 import { useAuth, useToast } from "../../hooks";
 import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui";
+import { useI18n } from "../../i18n";
 
 export function VerifyEmailForm() {
   const navigate = useNavigate();
   const { user, verifyEmailCode, resendVerificationEmail } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
   
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,15 +63,15 @@ export function VerifyEmailForm() {
       const result = await verifyEmailCode(verificationCode);
       
       if (result.success) {
-        toast.success("Email verified!", "Your account is now active");
+        toast.success(t.auth.emailVerified, t.auth.accountNowActive);
         navigate("/dashboard");
       } else {
-        setError(result.error || "Invalid code");
+        setError(result.error || t.auth.invalidCode);
         setCode(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
       }
     } catch {
-      setError("Failed to verify code");
+      setError(t.auth.failedToVerifyCode);
     } finally {
       setIsLoading(false);
     }
@@ -79,11 +81,11 @@ export function VerifyEmailForm() {
     setIsResending(true);
     try {
       await resendVerificationEmail();
-      toast.success("Code sent!", "Check your email for the new code");
+      toast.success(t.auth.codeSent, t.auth.checkEmailForCode);
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch {
-      toast.error("Failed to resend", "Please try again later");
+      toast.error(t.auth.failedToResend, t.auth.tryAgainLater);
     } finally {
       setIsResending(false);
     }
@@ -95,9 +97,9 @@ export function VerifyEmailForm() {
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <Mail className="h-8 w-8 text-primary" />
         </div>
-        <CardTitle>Verify your email</CardTitle>
+        <CardTitle>{t.auth.verifyEmail}</CardTitle>
         <CardDescription>
-          We sent a 6-digit code to{" "}
+          {t.auth.codeSentTo}{" "}
           <span className="font-medium text-text">{user?.email}</span>
         </CardDescription>
       </CardHeader>
@@ -129,14 +131,14 @@ export function VerifyEmailForm() {
         
         <div className="mt-6 text-center">
           <p className="text-sm text-text-muted">
-            Didn't receive the code?{" "}
+            {t.auth.didntReceiveCode}{" "}
             <button
               onClick={handleResend}
               disabled={isResending}
               className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-50"
             >
               {isResending && <RefreshCw className="h-3 w-3 animate-spin" />}
-              Resend
+              {t.auth.resend}
             </button>
           </p>
         </div>
@@ -147,7 +149,7 @@ export function VerifyEmailForm() {
           isLoading={isLoading}
           disabled={code.some((digit) => !digit)}
         >
-          Verify email
+          {t.auth.verifyEmail}
         </Button>
       </CardContent>
     </Card>

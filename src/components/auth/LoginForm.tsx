@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth, useToast } from "../../hooks";
 import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../ui";
+import { useI18n } from "../../i18n";
 
 export function LoginForm() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,13 +21,13 @@ export function LoginForm() {
     const newErrors: { email?: string; password?: string } = {};
     
     if (!email) {
-      newErrors.email = "Email is required";
+      newErrors.email = t.auth.emailRequired;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Invalid email address";
+      newErrors.email = t.auth.invalidEmail;
     }
     
     if (!password) {
-      newErrors.password = "Password is required";
+      newErrors.password = t.auth.passwordRequired;
     }
     
     setErrors(newErrors);
@@ -40,11 +42,11 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       await signIn(email, password);
-      toast.success("Welcome back!");
+      toast.success(t.auth.welcomeToast);
       navigate("/dashboard");
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to sign in";
-      toast.error("Login failed", errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t.auth.failedToSignIn;
+      toast.error(t.auth.loginFailed, errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -53,9 +55,9 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Welcome back</CardTitle>
+        <CardTitle>{t.auth.welcomeBack}</CardTitle>
         <CardDescription>
-          Sign in to your account to continue
+          {t.auth.signInDescription}
         </CardDescription>
       </CardHeader>
       
@@ -65,7 +67,7 @@ export function LoginForm() {
             <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type="email"
-              placeholder="Email address"
+              placeholder={t.auth.emailPlaceholder}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
@@ -77,7 +79,7 @@ export function LoginForm() {
             <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type={showPassword ? "text" : "password"}
-              placeholder="Password"
+              placeholder={t.auth.passwordPlaceholder}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               error={errors.password}
@@ -95,27 +97,27 @@ export function LoginForm() {
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2">
               <input type="checkbox" className="rounded border-border" />
-              <span className="text-sm text-text-muted">Remember me</span>
+              <span className="text-sm text-text-muted">{t.auth.rememberMe}</span>
             </label>
             <Link
               to="/forgot-password"
               className="text-sm text-primary hover:underline"
             >
-              Forgot password?
+              {t.auth.forgotPassword}
             </Link>
           </div>
           
           <Button type="submit" className="w-full" isLoading={isLoading}>
-            Sign in
+            {t.auth.signIn}
           </Button>
         </form>
       </CardContent>
       
       <CardFooter className="justify-center">
         <p className="text-sm text-text-muted">
-          Don't have an account?{" "}
+          {t.auth.dontHaveAccount}{" "}
           <Link to="/register" className="text-primary hover:underline">
-            Sign up
+            {t.auth.signUp}
           </Link>
         </p>
       </CardFooter>

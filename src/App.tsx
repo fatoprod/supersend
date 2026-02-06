@@ -12,6 +12,7 @@ import {
   RegisterPage,
   VerifyEmailPage,
 } from "./pages";
+import { useI18n } from "./i18n";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,21 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function NotFoundPage() {
+  const { t } = useI18n();
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center">
+        <h1 className="text-6xl font-bold text-text">{t.notFound.title}</h1>
+        <p className="mt-4 text-text-muted">{t.notFound.message}</p>
+        <a href="/dashboard" className="mt-6 inline-block text-primary hover:underline">
+          {t.notFound.goToDashboard}
+        </a>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -48,20 +64,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           
           {/* 404 */}
-          <Route
-            path="*"
-            element={
-              <div className="flex min-h-screen items-center justify-center bg-background">
-                <div className="text-center">
-                  <h1 className="text-6xl font-bold text-text">404</h1>
-                  <p className="mt-4 text-text-muted">Page not found</p>
-                  <a href="/dashboard" className="mt-6 inline-block text-primary hover:underline">
-                    Go to Dashboard
-                  </a>
-                </div>
-              </div>
-            }
-          />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

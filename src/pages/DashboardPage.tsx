@@ -1,72 +1,84 @@
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import { Users, Mail, Send, TrendingUp, ArrowUp, ArrowDown } from "lucide-react";
-
-const stats = [
-  {
-    title: "Total Contacts",
-    value: "2,847",
-    change: "+12.5%",
-    trend: "up",
-    icon: Users,
-  },
-  {
-    title: "Campaigns Sent",
-    value: "24",
-    change: "+4.3%",
-    trend: "up",
-    icon: Mail,
-  },
-  {
-    title: "Emails Sent",
-    value: "45,234",
-    change: "+18.2%",
-    trend: "up",
-    icon: Send,
-  },
-  {
-    title: "Open Rate",
-    value: "32.4%",
-    change: "-2.1%",
-    trend: "down",
-    icon: TrendingUp,
-  },
-];
-
-const recentCampaigns = [
-  {
-    id: "1",
-    name: "Welcome Series",
-    status: "completed",
-    sent: 1250,
-    opened: 423,
-    clicked: 89,
-    date: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Product Launch",
-    status: "completed",
-    sent: 3400,
-    opened: 1156,
-    clicked: 234,
-    date: "2024-01-12",
-  },
-  {
-    id: "3",
-    name: "Newsletter #24",
-    status: "scheduled",
-    sent: 0,
-    opened: 0,
-    clicked: 0,
-    date: "2024-01-20",
-  },
-];
+import { useI18n } from "../i18n";
 
 export function DashboardPage() {
+  const { t } = useI18n();
+
+  const stats = [
+    {
+      title: t.dashboard.totalContacts,
+      value: "2,847",
+      change: "+12.5%",
+      trend: "up",
+      icon: Users,
+    },
+    {
+      title: t.dashboard.campaignsSent,
+      value: "24",
+      change: "+4.3%",
+      trend: "up",
+      icon: Mail,
+    },
+    {
+      title: t.dashboard.emailsSent,
+      value: "45,234",
+      change: "+18.2%",
+      trend: "up",
+      icon: Send,
+    },
+    {
+      title: t.dashboard.openRate,
+      value: "32.4%",
+      change: "-2.1%",
+      trend: "down",
+      icon: TrendingUp,
+    },
+  ];
+
+  const recentCampaigns = [
+    {
+      id: "1",
+      name: "Welcome Series",
+      status: "completed" as const,
+      sent: 1250,
+      opened: 423,
+      clicked: 89,
+      date: "2024-01-15",
+    },
+    {
+      id: "2",
+      name: "Product Launch",
+      status: "completed" as const,
+      sent: 3400,
+      opened: 1156,
+      clicked: 234,
+      date: "2024-01-12",
+    },
+    {
+      id: "3",
+      name: "Newsletter #24",
+      status: "scheduled" as const,
+      sent: 0,
+      opened: 0,
+      clicked: 0,
+      date: "2024-01-20",
+    },
+  ];
+
+  const statusLabels: Record<string, string> = {
+    completed: t.dashboard.completed,
+    scheduled: t.dashboard.scheduled,
+    draft: t.dashboard.draft,
+    processing: t.dashboard.processing,
+    failed: t.dashboard.failed,
+    paused: t.dashboard.paused,
+  };
+
   return (
     <>
-      <Header title="Dashboard" subtitle="Welcome back! Here's what's happening." />
+      <Header title={t.dashboard.title} subtitle={t.dashboard.subtitle} />
       
       <div className="p-6">
         {/* Stats Grid */}
@@ -91,7 +103,7 @@ export function DashboardPage() {
                       >
                         {stat.change}
                       </span>
-                      <span className="text-sm text-text-muted">vs last month</span>
+                      <span className="text-sm text-text-muted">{t.common.vsLastMonth}</span>
                     </div>
                   </div>
                   <div className="rounded-lg bg-primary/10 p-3">
@@ -106,19 +118,19 @@ export function DashboardPage() {
         {/* Recent Campaigns */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Campaigns</CardTitle>
+            <CardTitle>{t.dashboard.recentCampaigns}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border text-left text-sm text-text-muted">
-                    <th className="pb-3 font-medium">Campaign</th>
-                    <th className="pb-3 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Sent</th>
-                    <th className="pb-3 font-medium">Opened</th>
-                    <th className="pb-3 font-medium">Clicked</th>
-                    <th className="pb-3 font-medium">Date</th>
+                    <th className="pb-3 font-medium">{t.dashboard.campaign}</th>
+                    <th className="pb-3 font-medium">{t.dashboard.status}</th>
+                    <th className="pb-3 font-medium">{t.dashboard.sent}</th>
+                    <th className="pb-3 font-medium">{t.dashboard.opened}</th>
+                    <th className="pb-3 font-medium">{t.dashboard.clicked}</th>
+                    <th className="pb-3 font-medium">{t.dashboard.date}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -140,7 +152,7 @@ export function DashboardPage() {
                               : "bg-surface-light text-text-muted"
                           }`}
                         >
-                          {campaign.status}
+                          {statusLabels[campaign.status] || campaign.status}
                         </span>
                       </td>
                       <td className="py-4 text-text-muted">{campaign.sent.toLocaleString()}</td>

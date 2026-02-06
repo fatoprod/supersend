@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useAuth, useToast } from "../../hooks";
 import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../ui";
+import { useI18n } from "../../i18n";
 
 export function RegisterForm() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
   
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,25 +23,25 @@ export function RegisterForm() {
     const newErrors: Record<string, string> = {};
     
     if (!name.trim()) {
-      newErrors.name = "Name is required";
+      newErrors.name = t.auth.nameRequired;
     }
     
     if (!email) {
-      newErrors.email = "Email is required";
+      newErrors.email = t.auth.emailRequired;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Invalid email address";
+      newErrors.email = t.auth.invalidEmail;
     }
     
     if (!password) {
-      newErrors.password = "Password is required";
+      newErrors.password = t.auth.passwordRequired;
     } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
+      newErrors.password = t.auth.passwordMinLength;
     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      newErrors.password = "Password must contain uppercase, lowercase, and number";
+      newErrors.password = t.auth.passwordRequirements;
     }
     
     if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
+      newErrors.confirmPassword = t.auth.passwordsDoNotMatch;
     }
     
     setErrors(newErrors);
@@ -54,11 +56,11 @@ export function RegisterForm() {
     setIsLoading(true);
     try {
       await signUp(email, password, name);
-      toast.success("Account created!", "Please verify your email");
+      toast.success(t.auth.accountCreated, t.auth.verifyYourEmail);
       navigate("/verify-email");
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to create account";
-      toast.error("Registration failed", errorMessage);
+      const errorMessage = error instanceof Error ? error.message : t.auth.failedToCreateAccount;
+      toast.error(t.auth.registrationFailed, errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -67,9 +69,9 @@ export function RegisterForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Create an account</CardTitle>
+        <CardTitle>{t.auth.createAccount}</CardTitle>
         <CardDescription>
-          Get started with SuperSend today
+          {t.auth.getStarted}
         </CardDescription>
       </CardHeader>
       
@@ -79,7 +81,7 @@ export function RegisterForm() {
             <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type="text"
-              placeholder="Full name"
+              placeholder={t.auth.fullNamePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
               error={errors.name}
@@ -91,7 +93,7 @@ export function RegisterForm() {
             <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type="email"
-              placeholder="Email address"
+              placeholder={t.auth.emailPlaceholder}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
@@ -103,7 +105,7 @@ export function RegisterForm() {
             <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type={showPassword ? "text" : "password"}
-              placeholder="Password"
+              placeholder={t.auth.passwordPlaceholder}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               error={errors.password}
@@ -122,7 +124,7 @@ export function RegisterForm() {
             <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
             <Input
               type={showPassword ? "text" : "password"}
-              placeholder="Confirm password"
+              placeholder={t.auth.confirmPasswordPlaceholder}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               error={errors.confirmPassword}
@@ -131,27 +133,27 @@ export function RegisterForm() {
           </div>
           
           <p className="text-xs text-text-muted">
-            By creating an account, you agree to our{" "}
+            {t.auth.termsAgreement}{" "}
             <Link to="/terms" className="text-primary hover:underline">
-              Terms of Service
+              {t.auth.termsOfService}
             </Link>{" "}
-            and{" "}
+            {t.auth.and}{" "}
             <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
+              {t.auth.privacyPolicy}
             </Link>
           </p>
           
           <Button type="submit" className="w-full" isLoading={isLoading}>
-            Create account
+            {t.auth.createAccount}
           </Button>
         </form>
       </CardContent>
       
       <CardFooter className="justify-center">
         <p className="text-sm text-text-muted">
-          Already have an account?{" "}
+          {t.auth.alreadyHaveAccount}{" "}
           <Link to="/login" className="text-primary hover:underline">
-            Sign in
+            {t.auth.signIn}
           </Link>
         </p>
       </CardFooter>

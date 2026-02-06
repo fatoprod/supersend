@@ -1,6 +1,7 @@
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import { TrendingUp, TrendingDown, Mail, Eye, MousePointer, UserMinus, AlertCircle } from "lucide-react";
+import { useI18n } from "../i18n";
 
 const analyticsData = {
   overview: {
@@ -25,11 +26,13 @@ const analyticsData = {
 };
 
 export function AnalyticsPage() {
+  const { t } = useI18n();
+
   return (
     <>
       <Header
-        title="Analytics"
-        subtitle="Track your email performance"
+        title={t.analytics.title}
+        subtitle={t.analytics.subtitle}
       />
 
       <div className="p-6">
@@ -42,7 +45,7 @@ export function AnalyticsPage() {
                   <Mail className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">Emails Sent</p>
+                  <p className="text-sm text-text-muted">{t.dashboard.emailsSent}</p>
                   <p className="text-xl font-bold text-text">
                     {analyticsData.overview.emailsSent.toLocaleString()}
                   </p>
@@ -64,7 +67,7 @@ export function AnalyticsPage() {
                   <Eye className="h-5 w-5 text-secondary" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">Open Rate</p>
+                  <p className="text-sm text-text-muted">{t.dashboard.openRate}</p>
                   <p className="text-xl font-bold text-text">
                     {analyticsData.overview.openRate}%
                   </p>
@@ -86,7 +89,7 @@ export function AnalyticsPage() {
                   <MousePointer className="h-5 w-5 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">Click Rate</p>
+                  <p className="text-sm text-text-muted">{t.analytics.clickRate}</p>
                   <p className="text-xl font-bold text-text">
                     {analyticsData.overview.clickRate}%
                   </p>
@@ -108,7 +111,7 @@ export function AnalyticsPage() {
                   <UserMinus className="h-5 w-5 text-error" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">Unsubscribe Rate</p>
+                  <p className="text-sm text-text-muted">{t.analytics.unsubscribeRate}</p>
                   <p className="text-xl font-bold text-text">
                     {analyticsData.overview.unsubscribeRate}%
                   </p>
@@ -130,7 +133,7 @@ export function AnalyticsPage() {
                   <AlertCircle className="h-5 w-5 text-text-muted" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">Bounce Rate</p>
+                  <p className="text-sm text-text-muted">{t.analytics.bounceRate}</p>
                   <p className="text-xl font-bold text-text">
                     {analyticsData.overview.bounceRate}%
                   </p>
@@ -151,11 +154,11 @@ export function AnalyticsPage() {
           {/* Chart Placeholder */}
           <Card>
             <CardHeader>
-              <CardTitle>Email Performance Over Time</CardTitle>
+              <CardTitle>{t.analytics.performanceOverTime}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex h-64 items-center justify-center rounded-lg bg-surface-light/50">
-                <p className="text-text-muted">Chart visualization coming soon</p>
+                <p className="text-text-muted">{t.analytics.chartComingSoon}</p>
               </div>
             </CardContent>
           </Card>
@@ -163,17 +166,17 @@ export function AnalyticsPage() {
           {/* Top Campaigns Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Top Performing Campaigns</CardTitle>
+              <CardTitle>{t.analytics.topCampaigns}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border text-left text-sm text-text-muted">
-                      <th className="pb-3 font-medium">Campaign</th>
-                      <th className="pb-3 font-medium text-right">Sent</th>
-                      <th className="pb-3 font-medium text-right">Open %</th>
-                      <th className="pb-3 font-medium text-right">Click %</th>
+                      <th className="pb-3 font-medium">{t.dashboard.campaign}</th>
+                      <th className="pb-3 font-medium text-right">{t.dashboard.sent}</th>
+                      <th className="pb-3 font-medium text-right">{t.analytics.openPercent}</th>
+                      <th className="pb-3 font-medium text-right">{t.analytics.clickPercent}</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -2,28 +2,30 @@ import { useState } from "react";
 import { Header } from "../components/layout";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
 import { useAuth, useToast } from "../hooks";
-import { Save, User, Mail, Key, Bell, Shield } from "lucide-react";
+import { Save, User, Mail, Key, Bell, Shield, Globe } from "lucide-react";
+import { useI18n } from "../i18n";
 
 export function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t, locale, setLocale } = useI18n();
   const [activeTab, setActiveTab] = useState("profile");
 
   const tabs = [
-    { id: "profile", label: "Profile", icon: User },
-    { id: "email", label: "Email Settings", icon: Mail },
-    { id: "security", label: "Security", icon: Shield },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "api", label: "API Keys", icon: Key },
+    { id: "profile", label: t.settings.profile, icon: User },
+    { id: "email", label: t.settings.emailSettings, icon: Mail },
+    { id: "security", label: t.settings.security, icon: Shield },
+    { id: "notifications", label: t.settings.notifications, icon: Bell },
+    { id: "api", label: t.settings.apiKeys, icon: Key },
   ];
 
   const handleSave = () => {
-    toast.success("Settings saved", "Your changes have been saved successfully");
+    toast.success(t.settings.settingsSaved, t.settings.changesSaved);
   };
 
   return (
     <>
-      <Header title="Settings" subtitle="Manage your account settings" />
+      <Header title={t.settings.title} subtitle={t.settings.subtitle} />
 
       <div className="p-6">
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -54,11 +56,12 @@ export function SettingsPage() {
           {/* Content */}
           <div className="flex-1">
             {activeTab === "profile" && (
+              <>
               <Card>
                 <CardHeader>
-                  <CardTitle>Profile Information</CardTitle>
+                  <CardTitle>{t.settings.profileInfo}</CardTitle>
                   <CardDescription>
-                    Update your account profile information
+                    {t.settings.updateProfileDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -68,7 +71,7 @@ export function SettingsPage() {
                         {user?.photoURL ? (
                           <img
                             src={user.photoURL}
-                            alt={user.displayName || "User"}
+                            alt={user.displayName || t.common.user}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -79,73 +82,111 @@ export function SettingsPage() {
                       </div>
                       <div>
                         <Button variant="secondary" size="sm">
-                          Change Photo
+                          {t.settings.changePhoto}
                         </Button>
                         <p className="mt-2 text-xs text-text-muted">
-                          JPG, GIF or PNG. Max 2MB.
+                          {t.settings.photoHelp}
                         </p>
                       </div>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <Input
-                        label="Display Name"
+                        label={t.settings.displayName}
                         defaultValue={user?.displayName || ""}
-                        placeholder="Your name"
+                        placeholder={t.settings.yourName}
                       />
                       <Input
-                        label="Email"
+                        label={t.settings.emailLabel}
                         type="email"
                         defaultValue={user?.email || ""}
                         disabled
-                        helperText="Email cannot be changed"
+                        helperText={t.settings.emailCannotChange}
                       />
                     </div>
 
                     <Button onClick={handleSave}>
                       <Save className="mr-2 h-4 w-4" />
-                      Save Changes
+                      {t.settings.saveChanges}
                     </Button>
                   </form>
                 </CardContent>
               </Card>
+
+              {/* Language Card */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    {t.settings.language}
+                  </CardTitle>
+                  <CardDescription>
+                    {t.settings.languageDescription}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setLocale("pt-BR")}
+                      className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 transition-colors ${
+                        locale === "pt-BR"
+                          ? "border-primary bg-primary/5 text-text"
+                          : "border-border text-text-muted hover:border-primary/50 hover:text-text"
+                      }`}
+                    >
+                      <span className="font-medium">{"Português (Brasil)"}</span>
+                    </button>
+                    <button
+                      onClick={() => setLocale("en")}
+                      className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3 transition-colors ${
+                        locale === "en"
+                          ? "border-primary bg-primary/5 text-text"
+                          : "border-border text-text-muted hover:border-primary/50 hover:text-text"
+                      }`}
+                    >
+                      <span className="font-medium">English</span>
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+              </>
             )}
 
             {activeTab === "email" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Email Settings</CardTitle>
+                  <CardTitle>{t.settings.emailSettingsTitle}</CardTitle>
                   <CardDescription>
-                    Configure your email sending preferences
+                    {t.settings.emailSettingsDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form className="space-y-4">
                     <Input
-                      label="Default From Name"
-                      placeholder="Your Company"
+                      label={t.settings.defaultFromName}
+                      placeholder={t.settings.defaultFromNamePlaceholder}
                       defaultValue="SuperSend"
                     />
                     <Input
-                      label="Default From Email"
+                      label={t.settings.defaultFromEmail}
                       type="email"
-                      placeholder="noreply@example.com"
+                      placeholder={t.settings.defaultFromEmailPlaceholder}
                       defaultValue="noreply@supersend.app"
                     />
                     <Input
-                      label="Reply-To Email"
+                      label={t.settings.replyToEmail}
                       type="email"
-                      placeholder="support@example.com"
+                      placeholder={t.settings.replyToEmailPlaceholder}
                     />
                     <Input
-                      label="Unsubscribe Link Text"
-                      placeholder="Unsubscribe from emails"
-                      defaultValue="Unsubscribe"
+                      label={t.settings.unsubscribeLinkText}
+                      placeholder={t.settings.unsubscribeLinkPlaceholder}
+                      defaultValue={t.settings.unsubscribe}
                     />
 
                     <Button onClick={handleSave}>
                       <Save className="mr-2 h-4 w-4" />
-                      Save Changes
+                      {t.settings.saveChanges}
                     </Button>
                   </form>
                 </CardContent>
@@ -155,32 +196,32 @@ export function SettingsPage() {
             {activeTab === "security" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Security</CardTitle>
+                  <CardTitle>{t.settings.securityTitle}</CardTitle>
                   <CardDescription>
-                    Manage your account security settings
+                    {t.settings.securityDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form className="space-y-4">
                     <Input
-                      label="Current Password"
+                      label={t.settings.currentPassword}
                       type="password"
-                      placeholder="Enter current password"
+                      placeholder={t.settings.currentPasswordPlaceholder}
                     />
                     <Input
-                      label="New Password"
+                      label={t.settings.newPassword}
                       type="password"
-                      placeholder="Enter new password"
+                      placeholder={t.settings.newPasswordPlaceholder}
                     />
                     <Input
-                      label="Confirm New Password"
+                      label={t.settings.confirmNewPassword}
                       type="password"
-                      placeholder="Confirm new password"
+                      placeholder={t.settings.confirmNewPasswordPlaceholder}
                     />
 
                     <Button onClick={handleSave}>
                       <Save className="mr-2 h-4 w-4" />
-                      Update Password
+                      {t.settings.updatePassword}
                     </Button>
                   </form>
                 </CardContent>
@@ -190,18 +231,18 @@ export function SettingsPage() {
             {activeTab === "notifications" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Notification Preferences</CardTitle>
+                  <CardTitle>{t.settings.notificationPreferences}</CardTitle>
                   <CardDescription>
-                    Choose what notifications you receive
+                    {t.settings.notificationDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {[
-                      { label: "Campaign completed", description: "Get notified when a campaign finishes sending" },
-                      { label: "New subscriber", description: "Get notified when someone subscribes" },
-                      { label: "Weekly digest", description: "Receive a weekly summary of your email performance" },
-                      { label: "Product updates", description: "Get notified about new features and updates" },
+                      { label: t.settings.campaignCompleted, description: t.settings.campaignCompletedDesc },
+                      { label: t.settings.newSubscriber, description: t.settings.newSubscriberDesc },
+                      { label: t.settings.weeklyDigest, description: t.settings.weeklyDigestDesc },
+                      { label: t.settings.productUpdates, description: t.settings.productUpdatesDesc },
                     ].map((item, index) => (
                       <div key={index} className="flex items-center justify-between rounded-lg border border-border p-4">
                         <div>
@@ -217,7 +258,7 @@ export function SettingsPage() {
 
                     <Button onClick={handleSave}>
                       <Save className="mr-2 h-4 w-4" />
-                      Save Preferences
+                      {t.settings.savePreferences}
                     </Button>
                   </div>
                 </CardContent>
@@ -227,9 +268,9 @@ export function SettingsPage() {
             {activeTab === "api" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>API Keys</CardTitle>
+                  <CardTitle>{t.settings.apiKeysTitle}</CardTitle>
                   <CardDescription>
-                    Manage your API keys for integration
+                    {t.settings.apiKeysDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -237,17 +278,17 @@ export function SettingsPage() {
                     <div className="rounded-lg border border-border p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-text">Production API Key</p>
+                          <p className="font-medium text-text">{t.settings.productionApiKey}</p>
                           <p className="mt-1 font-mono text-sm text-text-muted">
                             sk_live_••••••••••••••••
                           </p>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="secondary" size="sm">
-                            Copy
+                            {t.common.copy}
                           </Button>
                           <Button variant="ghost" size="sm">
-                            Regenerate
+                            {t.settings.regenerate}
                           </Button>
                         </div>
                       </div>
@@ -256,24 +297,24 @@ export function SettingsPage() {
                     <div className="rounded-lg border border-border p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-text">Test API Key</p>
+                          <p className="font-medium text-text">{t.settings.testApiKey}</p>
                           <p className="mt-1 font-mono text-sm text-text-muted">
                             sk_test_••••••••••••••••
                           </p>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="secondary" size="sm">
-                            Copy
+                            {t.common.copy}
                           </Button>
                           <Button variant="ghost" size="sm">
-                            Regenerate
+                            {t.settings.regenerate}
                           </Button>
                         </div>
                       </div>
                     </div>
 
                     <Button>
-                      Generate New API Key
+                      {t.settings.generateNewApiKey}
                     </Button>
                   </div>
                 </CardContent>

@@ -12,20 +12,22 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks";
 import { useUIStore } from "../../stores/uiStore";
-
-const navItems = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/contacts", icon: Users, label: "Contacts" },
-  { to: "/campaigns", icon: Mail, label: "Campaigns" },
-  { to: "/templates", icon: FileText, label: "Templates" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-];
+import { useI18n } from "../../i18n";
 
 export function Sidebar() {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { t } = useI18n();
+
+  const navItems = [
+    { to: "/dashboard", icon: LayoutDashboard, label: t.nav.dashboard },
+    { to: "/contacts", icon: Users, label: t.nav.contacts },
+    { to: "/campaigns", icon: Mail, label: t.nav.campaigns },
+    { to: "/templates", icon: FileText, label: t.nav.templates },
+    { to: "/analytics", icon: BarChart3, label: t.nav.analytics },
+    { to: "/settings", icon: Settings, label: t.nav.settings },
+  ];
 
   const handleSignOut = async () => {
     await signOut();
@@ -84,7 +86,7 @@ export function Sidebar() {
       <div className="border-t border-border p-4">
         {sidebarOpen && user && (
           <div className="mb-3 truncate text-sm">
-            <p className="font-medium text-text">{user.displayName || "User"}</p>
+            <p className="font-medium text-text">{user.displayName || t.common.user}</p>
             <p className="truncate text-text-muted">{user.email}</p>
           </div>
         )}
@@ -93,7 +95,7 @@ export function Sidebar() {
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-text-muted transition-colors hover:bg-error/10 hover:text-error"
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {sidebarOpen && <span>Sign out</span>}
+          {sidebarOpen && <span>{t.auth.signOut}</span>}
         </button>
       </div>
     </aside>

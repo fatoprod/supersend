@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Header } from "../components/layout";
 import { Button, Card, CardContent, Input } from "../components/ui";
 import { Plus, Search, Filter, Upload, MoreHorizontal, Mail, Trash2 } from "lucide-react";
+import { useI18n } from "../i18n";
 
 interface Contact {
   id: string;
@@ -48,6 +49,7 @@ const mockContacts: Contact[] = [
 ];
 
 export function ContactsPage() {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
 
@@ -76,8 +78,8 @@ export function ContactsPage() {
   return (
     <>
       <Header
-        title="Contacts"
-        subtitle={`${mockContacts.length} total contacts`}
+        title={t.contacts.title}
+        subtitle={`${mockContacts.length} ${t.contacts.totalContacts}`}
       />
 
       <div className="p-6">
@@ -88,7 +90,7 @@ export function ContactsPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
               <Input
                 type="text"
-                placeholder="Search contacts..."
+                placeholder={t.contacts.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -96,17 +98,17 @@ export function ContactsPage() {
             </div>
             <Button variant="secondary">
               <Filter className="mr-2 h-4 w-4" />
-              Filter
+              {t.common.filter}
             </Button>
           </div>
           <div className="flex gap-3">
             <Button variant="secondary">
               <Upload className="mr-2 h-4 w-4" />
-              Import
+              {t.common.import}
             </Button>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Add Contact
+              {t.contacts.addContact}
             </Button>
           </div>
         </div>
@@ -115,16 +117,16 @@ export function ContactsPage() {
         {selectedContacts.length > 0 && (
           <div className="mb-4 flex items-center gap-4 rounded-lg bg-primary/10 px-4 py-3">
             <span className="text-sm text-text">
-              {selectedContacts.length} selected
+              {selectedContacts.length} {t.common.selected}
             </span>
             <div className="flex gap-2">
               <Button size="sm" variant="secondary">
                 <Mail className="mr-2 h-4 w-4" />
-                Send Email
+                {t.contacts.sendEmail}
               </Button>
               <Button size="sm" variant="danger">
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                {t.common.delete}
               </Button>
             </div>
           </div>
@@ -148,12 +150,12 @@ export function ContactsPage() {
                         className="rounded border-border"
                       />
                     </th>
-                    <th className="p-4 font-medium">Email</th>
-                    <th className="p-4 font-medium">Name</th>
-                    <th className="p-4 font-medium">Company</th>
-                    <th className="p-4 font-medium">Tags</th>
-                    <th className="p-4 font-medium">Status</th>
-                    <th className="p-4 font-medium">Added</th>
+                    <th className="p-4 font-medium">{t.contacts.email}</th>
+                    <th className="p-4 font-medium">{t.contacts.name}</th>
+                    <th className="p-4 font-medium">{t.contacts.company}</th>
+                    <th className="p-4 font-medium">{t.contacts.tags}</th>
+                    <th className="p-4 font-medium">{t.dashboard.status}</th>
+                    <th className="p-4 font-medium">{t.contacts.added}</th>
                     <th className="p-4"></th>
                   </tr>
                 </thead>
@@ -198,7 +200,7 @@ export function ContactsPage() {
                               : "bg-success/10 text-success"
                           }`}
                         >
-                          {contact.unsubscribed ? "Unsubscribed" : "Active"}
+                          {contact.unsubscribed ? t.contacts.unsubscribed : t.contacts.active}
                         </span>
                       </td>
                       <td className="p-4 text-text-muted">{contact.createdAt}</td>
