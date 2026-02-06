@@ -1,8 +1,9 @@
 import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import { sendEmail } from "../email/mailgun";
 
 function getDb() {
-  return admin.firestore();
+  return getFirestore("supersend");
 }
 
 /**

@@ -45,6 +45,37 @@ supersend/
 └── firestore.indexes.json  # Índices Firestore
 ```
 
+## Recursos Nomeados (Multi-App Isolation)
+
+Este projeto roda dentro de um projeto Firebase compartilhado (`studio-9597335049-1a59a`). Para evitar conflitos com outros apps, todos os recursos são nomeados:
+
+### Firestore Database
+
+- **Nome do banco**: `supersend`
+- **Frontend**: `getFirestore(app, "supersend")` em `src/lib/firebase.ts`
+- **Functions**: `getFirestore("supersend")` de `firebase-admin/firestore`
+- **firebase.json**: `"database": "supersend"` na seção `firestore`
+- **Deploy de rules/indexes**: Aplica automaticamente ao banco `supersend` (não ao `(default)`)
+
+### Storage Bucket
+
+- **Bucket nomeado**: `gs://supersend-studio-9597335049-1a59a`
+- **Frontend**: `getStorage(app, "gs://supersend-studio-9597335049-1a59a")` em `src/lib/firebase.ts`
+
+### Functions Codebase
+
+- **Codebase**: `supersend` em `firebase.json`
+- O deploy de functions só gerencia as functions do codebase `supersend`
+- Functions de outros apps (ex: `dashboardApi`, `ssrmargemcheck`) **não são afetadas**
+- Na listagem do Firebase, as functions aparecem como `supersend:nomeDaFunction`
+
+### Hosting Target
+
+- **Target**: `supersend` → site `supersendapp`
+- Configurado em `.firebaserc` com `firebase target:apply hosting supersend supersendapp`
+
+> **Importante**: Ao fazer `firebase deploy`, apenas os recursos do SuperSend são afetados. Outros apps no mesmo projeto permanecem intactos.
+
 ## Firebase Functions
 
 | Função | Tipo | Descrição |
@@ -55,8 +86,6 @@ supersend/
 | `sendSingleEmail` | Callable | Envia email individual via Mailgun |
 | `processCampaign` | Callable | Processa e envia campanha para lista de contatos |
 | `processScheduledCampaigns` | Scheduled | Verifica e envia campanhas agendadas (a cada 5 min) |
-
-> **Codebase**: `supersend` — as functions são isoladas de outros apps no mesmo projeto Firebase.
 
 ## Setup Local
 
@@ -144,9 +173,15 @@ Após o deploy, ativar no Firebase Console:
 
 ## Produção
 
-- **URL**: https://supersendapp.web.app
-- **Projeto Firebase**: `studio-9597335049-1a59a`
-- **Mailgun Domain**: `mg.promocaohp.com.br`
+| Recurso | Valor |
+|---------|-------|
+| **URL** | https://supersendapp.web.app |
+| **Projeto Firebase** | `studio-9597335049-1a59a` |
+| **Firestore Database** | `supersend` (nomeado) |
+| **Storage Bucket** | `gs://supersend-studio-9597335049-1a59a` |
+| **Functions Codebase** | `supersend` |
+| **Hosting Target** | `supersend` → site `supersendapp` |
+| **Mailgun Domain** | `mg.promocaohp.com.br` |
 
 ## Licença
 

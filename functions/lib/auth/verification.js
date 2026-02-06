@@ -36,9 +36,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendVerificationEmail = sendVerificationEmail;
 exports.verifyEmailCode = verifyEmailCode;
 const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const mailgun_1 = require("../email/mailgun");
 function getDb() {
-    return admin.firestore();
+    return (0, firestore_1.getFirestore)("supersend");
 }
 /**
  * Generate a 6-digit verification code

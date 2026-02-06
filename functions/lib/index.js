@@ -35,13 +35,14 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processScheduledCampaigns = exports.processCampaign = exports.sendSingleEmail = exports.resendVerification = exports.verifyEmail = exports.onUserCreated = exports.db = void 0;
 const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const functions = __importStar(require("firebase-functions"));
 const mailgun_1 = require("./email/mailgun");
 const verification_1 = require("./auth/verification");
 // Initialize Firebase Admin
 admin.initializeApp();
-// Export Firestore instance
-exports.db = admin.firestore();
+// Export named Firestore database instance
+exports.db = (0, firestore_1.getFirestore)("supersend");
 // ============ Auth Functions ============
 /**
  * Send verification email when user signs up

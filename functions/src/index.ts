@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
 import { sendEmail, sendBulkEmails } from "./email/mailgun";
 import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
@@ -6,8 +7,8 @@ import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// Export Firestore instance
-export const db = admin.firestore();
+// Export named Firestore database instance
+export const db = getFirestore("supersend");
 
 // ============ Auth Functions ============
 
