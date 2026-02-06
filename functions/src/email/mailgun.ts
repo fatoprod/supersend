@@ -56,6 +56,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       subject: options.subject,
       text: options.text,
       html: options.html,
+      template: "",
     });
 
     return {
@@ -98,6 +99,7 @@ export async function sendBulkEmails(options: BulkEmailOptions): Promise<BulkEma
             subject: options.subject,
             text: options.text,
             html: options.html,
+            template: "",
           });
 
           return {

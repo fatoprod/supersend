@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Header } from "../components/layout";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
-import { Plus, Search, Filter, MoreHorizontal, Play, Pause, Eye, Copy, Trash2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Play, Pause, Eye, Copy } from "lucide-react";
 import type { CampaignStatus } from "../types";
 
 interface Campaign {

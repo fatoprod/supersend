@@ -8,7 +8,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { toggleSidebar } = useUIStore();
   const { user } = useAuth();
 
   return (
