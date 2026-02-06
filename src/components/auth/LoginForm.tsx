@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth, useToast } from "../../hooks";
-import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../ui";
+import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui";
 import { useI18n } from "../../i18n";
 
 export function LoginForm() {
@@ -113,14 +113,6 @@ export function LoginForm() {
         </form>
       </CardContent>
       
-      <CardFooter className="justify-center">
-        <p className="text-sm text-text-muted">
-          {t.auth.dontHaveAccount}{" "}
-          <Link to="/register" className="text-primary hover:underline">
-            {t.auth.signUp}
-          </Link>
-        </p>
-      </CardFooter>
     </Card>
   );
 }
