@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
 import { Button, Input } from "../components/ui";
-import { ArrowLeft, Eye, Loader2, Save, Send, FileText, Plus, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Save, Send, FileText, Plus, X, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
 import { useI18n } from "../i18n";
-import { useCampaigns, useCreateCampaign, useUpdateCampaign, useSendCampaign, useContacts, useTemplates, useToast } from "../hooks";
+import { useCampaigns, useCreateCampaign, useUpdateCampaign, useSendCampaign, useTemplates, useToast } from "../hooks";
+import { useContactLists, useContactsInList } from "../hooks/useContactLists";
 import type { Campaign, CampaignFormData, EmailTemplate } from "../types";
 
 // Variables that are required — must be filled before sending
@@ -58,7 +59,7 @@ export function CampaignEditorPage() {
   const isEditing = !!campaignId;
 
   const { data: campaigns } = useCampaigns();
-  const { data: contacts } = useContacts();
+  const { data: contactLists } = useContactLists();
   const { data: templates } = useTemplates();
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
@@ -68,13 +69,20 @@ export function CampaignEditorPage() {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [html, setHtml] = useState("");
-  const [selectAllContacts, setSelectAllContacts] = useState(true);
+  const [selectedListId, setSelectedListId] = useState<string>("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | "custom">("");
   const [rawTemplateHtml, setRawTemplateHtml] = useState("");
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  // Fetch contacts from selected list
+  const { data: listContacts } = useContactsInList(selectedListId || "");
+  const activeContacts = useMemo(() => {
+    if (!listContacts || !selectedListId) return [];
+    return listContacts.filter((c) => !c.unsubscribed);
+  }, [listContacts, selectedListId]);
 
   // Load existing campaign data for editing
   useEffect(() => {
@@ -107,10 +115,6 @@ export function CampaignEditorPage() {
   const allVariablesFilled = useMemo(() => {
     return detectedVars.every((v) => !!templateVariables[v]?.trim());
   }, [detectedVars, templateVariables]);
-
-  const activeContacts = useMemo(() => {
-    return (contacts || []).filter((c) => !c.unsubscribed);
-  }, [contacts]);
 
   // Compute final HTML
   const computeHtml = (raw: string, vars: Record<string, string>) => {
@@ -169,8 +173,12 @@ export function CampaignEditorPage() {
       );
       return false;
     }
+    if (action === "send" && !selectedListId) {
+      toast.error("Selecione uma lista de contatos");
+      return false;
+    }
     if (action === "send" && activeContacts.length === 0) {
-      toast.error("Nenhum contato ativo para enviar");
+      toast.error("Nenhum contato ativo na lista selecionada");
       return false;
     }
     return true;
@@ -179,7 +187,7 @@ export function CampaignEditorPage() {
   const handleSave = async () => {
     if (!validate("save")) return;
     setSaving(true);
-    const recipients = selectAllContacts ? activeContacts.map((c) => c.email) : [];
+    const recipients = selectedListId ? activeContacts.map((c) => c.email) : [];
     const data: CampaignFormData = { name, subject, html, recipients };
 
     try {
@@ -201,7 +209,7 @@ export function CampaignEditorPage() {
   const handleSaveAndSend = async () => {
     if (!validate("send")) return;
     setSaving(true);
-    const recipients = selectAllContacts ? activeContacts.map((c) => c.email) : [];
+    const recipients = activeContacts.map((c) => c.email);
     if (recipients.length === 0) { toast.error("Selecione ao menos um destinatário"); setSaving(false); return; }
 
     const data: CampaignFormData = { name, subject, html, recipients };
@@ -424,21 +432,35 @@ export function CampaignEditorPage() {
             {/* Section: Recipients */}
             <section>
               <h3 className="mb-4 text-base font-semibold text-text">{recipientsSection}. Destinatários</h3>
-              <div className="rounded-lg border border-border bg-surface p-4">
-                <label className="flex items-center gap-3 text-sm font-medium text-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectAllContacts}
-                    onChange={(e) => setSelectAllContacts(e.target.checked)}
-                    className="rounded border-border h-4 w-4"
-                  />
-                  <span>
-                    Enviar para todos os contatos ativos
-                    <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      {activeContacts.length} contatos
-                    </span>
-                  </span>
-                </label>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-text">Selecione uma lista de contatos *</label>
+                  <div className="relative">
+                    <select
+                      value={selectedListId}
+                      onChange={(e) => setSelectedListId(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-border bg-background px-4 py-3 pr-10 text-sm text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="">Selecione uma lista...</option>
+                      {(contactLists || []).map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name} ({list.contactCount} contatos)
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                  </div>
+                </div>
+                {selectedListId && (
+                  <div className="rounded-lg border border-border bg-surface p-4">
+                    <div className="flex items-center gap-2 text-sm text-text">
+                      <span>Contatos ativos nesta lista:</span>
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {activeContacts.length} contatos
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

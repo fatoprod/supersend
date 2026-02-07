@@ -1,4 +1,3 @@
-export * from "./contacts";
 export * from "./contactLists";
 export * from "./campaigns";
 export * from "./templates";
