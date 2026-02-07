@@ -67,7 +67,7 @@ export const ptBR: Translations = {
 
   nav: {
     dashboard: "Painel",
-    contacts: "Contatos",
+    contacts: "Listas de Contatos",
     campaigns: "Campanhas",
     templates: "Templates",
     analytics: "Análises",

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmModal } from "../components/ui";
 import { Plus, Search, Play, Pause, Eye, Copy, Loader2, Trash2, Edit } from "lucide-react";
 import type { CampaignStatus } from "../types";
 import { useI18n } from "../i18n";
@@ -38,6 +38,11 @@ export function CampaignsPage() {
   const duplicateCampaign = useDuplicateCampaign();
 
   const [filter, setFilter] = useState<CampaignStatus | "all">("all");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; campaignId: string; campaignName: string }>({
+    isOpen: false,
+    campaignId: "",
+    campaignName: "",
+  });
 
   const filteredCampaigns =
     filter === "all"
@@ -71,10 +76,15 @@ export function CampaignsPage() {
     }
   };
 
-  const handleDelete = async (campaignId: string) => {
+  const openDeleteConfirm = (campaignId: string, campaignName: string) => {
+    setDeleteConfirm({ isOpen: true, campaignId, campaignName });
+  };
+
+  const handleDelete = async () => {
     try {
-      await deleteCampaign.mutateAsync(campaignId);
+      await deleteCampaign.mutateAsync(deleteConfirm.campaignId);
       toast.success("Campaign deleted");
+      setDeleteConfirm({ isOpen: false, campaignId: "", campaignName: "" });
     } catch (error) {
       toast.error("Error", String(error));
     }
@@ -151,7 +161,7 @@ export function CampaignsPage() {
                       {statusLabels[campaign.status] || campaign.status}
                     </span>
                     <button
-                      onClick={() => handleDelete(campaign.id)}
+                      onClick={() => openDeleteConfirm(campaign.id, campaign.name)}
                       className="rounded-lg p-1 text-text-muted opacity-0 transition-opacity hover:bg-error/10 hover:text-error group-hover:opacity-100"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -260,6 +270,19 @@ export function CampaignsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, campaignId: "", campaignName: "" })}
+        onConfirm={handleDelete}
+        title="Excluir Campanha"
+        message={`Tem certeza que deseja excluir a campanha "${deleteConfirm.campaignName}"?`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        isLoading={deleteCampaign.isPending}
+        variant="danger"
+      />
     </>
   );
 }

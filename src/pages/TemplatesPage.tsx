@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmModal } from "../components/ui";
 import { Button } from "../components/ui";
 import { Plus, FileText, Copy, Trash2, Edit, Loader2, X, Eye } from "lucide-react";
 import { useI18n } from "../i18n";
@@ -28,16 +28,26 @@ export function TemplatesPage() {
 
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; templateId: string; templateName: string }>({
+    isOpen: false,
+    templateId: "",
+    templateName: "",
+  });
 
   const openPreview = (html: string) => {
     setPreviewHtml(html);
     setShowPreview(true);
   };
 
-  const handleDelete = async (templateId: string) => {
+  const openDeleteConfirm = (templateId: string, templateName: string) => {
+    setDeleteConfirm({ isOpen: true, templateId, templateName });
+  };
+
+  const handleDelete = async () => {
     try {
-      await deleteTemplate.mutateAsync(templateId);
+      await deleteTemplate.mutateAsync(deleteConfirm.templateId);
       toast.success("Template excluído");
+      setDeleteConfirm({ isOpen: false, templateId: "", templateName: "" });
     } catch (error) {
       toast.error("Erro", String(error));
     }
@@ -113,7 +123,7 @@ export function TemplatesPage() {
                     <Button size="sm" variant="secondary" onClick={() => handleDuplicate(template.id)}>
                       <Copy className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(template.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => openDeleteConfirm(template.id, template.name)}>
                       <Trash2 className="h-4 w-4 text-error" />
                     </Button>
                   </div>
@@ -161,6 +171,19 @@ export function TemplatesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, templateId: "", templateName: "" })}
+        onConfirm={handleDelete}
+        title="Excluir Template"
+        message={`Tem certeza que deseja excluir o template "${deleteConfirm.templateName}"?`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        isLoading={deleteTemplate.isPending}
+        variant="danger"
+      />
     </>
   );
 }

@@ -67,7 +67,7 @@ export const en: Translations = {
 
   nav: {
     dashboard: "Dashboard",
-    contacts: "Contacts",
+    contacts: "Contact Lists",
     campaigns: "Campaigns",
     templates: "Templates",
     analytics: "Analytics",

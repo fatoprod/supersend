@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Button, Card, CardContent, Input } from "../components/ui";
+import { Button, Card, CardContent, Input, ConfirmModal } from "../components/ui";
 import { Plus, Search, Upload, Trash2, Loader2, X, Mail, ArrowLeft, Download } from "lucide-react";
 
 import {
@@ -41,6 +41,12 @@ export function ListContactsPage() {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; contactId: string; email: string }>({
+    isOpen: false,
+    contactId: "",
+    email: "",
+  });
+  const [deleteBulkConfirm, setDeleteBulkConfirm] = useState(false);
   const [newContact, setNewContact] = useState<ContactFormData>({
     email: "",
     firstName: "",
@@ -93,23 +99,29 @@ export function ListContactsPage() {
       await deleteContactsBulk.mutateAsync({ listId, contactIds: selectedContacts });
       toast.success(`${selectedContacts.length} contatos excluídos`);
       setSelectedContacts([]);
+      setDeleteBulkConfirm(false);
     } catch (error) {
       toast.error("Erro", String(error));
     }
   };
 
-  const handleDeleteSingle = async (contactId: string) => {
+  const handleDeleteSingle = async () => {
     if (!listId) return;
     try {
-      await deleteContact.mutateAsync({ listId, contactId });
+      await deleteContact.mutateAsync({ listId, contactId: deleteConfirm.contactId });
       toast.success("Contato excluído");
+      setDeleteConfirm({ isOpen: false, contactId: "", email: "" });
     } catch (error) {
       toast.error("Erro", String(error));
     }
+  };
+
+  const openDeleteConfirm = (contactId: string, email: string) => {
+    setDeleteConfirm({ isOpen: true, contactId, email });
   };
 
   const downloadCSVTemplate = () => {
-    const csvContent = "email,firstName,lastName,company\nexample@email.com,John,Doe,Company Name";
+    const csvContent = "email;firstName;lastName;company\nexample@email.com;John;Doe;Company Name";
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -128,7 +140,7 @@ export function ListContactsPage() {
       return;
     }
 
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const headers = lines[0].split(";").map((h) => h.trim().toLowerCase());
     const emailIdx = headers.indexOf("email");
     if (emailIdx === -1) {
       toast.error("CSV deve ter uma coluna 'email'");
@@ -141,7 +153,7 @@ export function ListContactsPage() {
 
     const contactsToImport: ContactFormData[] = [];
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim());
+      const cols = lines[i].split(";").map((c) => c.trim());
       const email = cols[emailIdx];
       if (!email || !email.includes("@")) continue;
 
@@ -239,7 +251,7 @@ export function ListContactsPage() {
               {selectedContacts.length} selecionados
             </span>
             <div className="flex gap-2">
-              <Button size="sm" variant="danger" onClick={handleDeleteSelected} disabled={deleteContactsBulk.isPending}>
+              <Button size="sm" variant="danger" onClick={() => setDeleteBulkConfirm(true)} disabled={deleteContactsBulk.isPending}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Excluir
               </Button>
@@ -350,7 +362,7 @@ export function ListContactsPage() {
                         <td className="p-4 text-text-muted">{formatDate(contact.createdAt)}</td>
                         <td className="p-4">
                           <button
-                            onClick={() => handleDeleteSingle(contact.id)}
+                            onClick={() => openDeleteConfirm(contact.id, contact.email)}
                             className="rounded-lg p-2 text-text-muted hover:bg-error/10 hover:text-error"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -481,6 +493,32 @@ export function ListContactsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Single Confirm Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, contactId: "", email: "" })}
+        onConfirm={handleDeleteSingle}
+        title="Excluir Contato"
+        message={`Tem certeza que deseja excluir o contato "${deleteConfirm.email}"?`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        isLoading={deleteContact.isPending}
+        variant="danger"
+      />
+
+      {/* Delete Bulk Confirm Modal */}
+      <ConfirmModal
+        isOpen={deleteBulkConfirm}
+        onClose={() => setDeleteBulkConfirm(false)}
+        onConfirm={handleDeleteSelected}
+        title="Excluir Contatos"
+        message={`Tem certeza que deseja excluir ${selectedContacts.length} contato(s) selecionados?`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        isLoading={deleteContactsBulk.isPending}
+        variant="danger"
+      />
     </>
   );
 }

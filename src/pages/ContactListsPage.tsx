@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Button, Card, CardContent, Input } from "../components/ui";
+import { Button, Card, CardContent, Input, ConfirmModal } from "../components/ui";
 import { Plus, Search, Trash2, Loader2, X, Users, Download } from "lucide-react";
 import { useContactLists, useCreateContactList, useDeleteContactList, useToast } from "../hooks";
 import type { ContactList, ContactListFormData } from "../types";
@@ -25,6 +25,11 @@ export function ContactListsPage() {
 
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; listId: string; listName: string }>({
+    isOpen: false,
+    listId: "",
+    listName: "",
+  });
   const [newList, setNewList] = useState<ContactListFormData>({
     name: "",
     description: "",
@@ -49,21 +54,23 @@ export function ContactListsPage() {
     }
   };
 
-  const handleDeleteList = async (listId: string, e: React.MouseEvent) => {
+  const openDeleteConfirm = (listId: string, listName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Tem certeza que deseja excluir esta lista? Todos os contatos serão removidos.")) {
-      return;
-    }
+    setDeleteConfirm({ isOpen: true, listId, listName });
+  };
+
+  const handleDeleteList = async () => {
     try {
-      await deleteList.mutateAsync(listId);
+      await deleteList.mutateAsync(deleteConfirm.listId);
       toast.success("Lista excluída");
+      setDeleteConfirm({ isOpen: false, listId: "", listName: "" });
     } catch (error) {
       toast.error("Erro ao excluir lista", String(error));
     }
   };
 
   const downloadCSVTemplate = () => {
-    const csvContent = "email,firstName,lastName,company\nexample@email.com,John,Doe,Company Name";
+    const csvContent = "email;firstName;lastName;company\nexample@email.com;John;Doe;Company Name";
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -141,7 +148,7 @@ export function ContactListsPage() {
                       )}
                     </div>
                     <button
-                      onClick={(e) => handleDeleteList(list.id, e)}
+                      onClick={(e) => openDeleteConfirm(list.id, list.name, e)}
                       className="ml-2 p-1 text-text-muted hover:text-red-500 transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -217,6 +224,19 @@ export function ContactListsPage() {
           </Card>
         </div>
       )}
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, listId: "", listName: "" })}
+        onConfirm={handleDeleteList}
+        title="Excluir Lista"
+        message={`Tem certeza que deseja excluir a lista "${deleteConfirm.listName}"? Todos os contatos serão removidos permanentemente.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        isLoading={deleteList.isPending}
+        variant="danger"
+      />
     </>
   );
 }
