@@ -1,17 +1,22 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
 import { Button, Input } from "../components/ui";
 import {
-  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, X, AlertCircle, CheckCircle2,
+  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, X, AlertCircle, CheckCircle2, Upload, Image,
 } from "lucide-react";
 import { useTemplates, useCreateTemplate, useUpdateTemplate, useToast } from "../hooks";
+import { uploadLogo, LOGO_GUIDELINES } from "../lib/services/storage";
+import { useAuth } from "../hooks";
 import type { EmailTemplate, EmailTemplateFormData } from "../types";
 
 // Variables that are required — must be filled before sending a campaign
 const REQUIRED_VARIABLES = new Set([
-  "company", "title", "content", "cta_text", "cta_url", "subject",
+  "company", "title", "content", "cta_text", "cta_url",
 ]);
+
+// Variables to exclude from the form (they are set elsewhere)
+const EXCLUDED_VARIABLES = new Set(["subject"]);
 
 const VARIABLE_LABELS: Record<string, string> = {
   company: "Nome da Empresa",
@@ -148,15 +153,19 @@ export function TemplateEditorPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { templateId } = useParams<{ templateId: string }>();
+  const { user } = useAuth();
   const isEditing = !!templateId;
 
   const { data: templates } = useTemplates();
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Form state - use default HTML template for new templates
   const [name, setName] = useState("");
-  const [subject, setSubject] = useState(isEditing ? "" : "{{subject}}");
+  const [subject, setSubject] = useState("");
   const [html, setHtml] = useState(isEditing ? "" : DEFAULT_HTML_TEMPLATE);
   const [text, setText] = useState("");
   const [colors, setColors] = useState<Record<string, string>>({ ...DEFAULT_COLORS });
@@ -184,18 +193,19 @@ export function TemplateEditorPage() {
         // Detect colors used in the template
         const detectedColors = { ...DEFAULT_COLORS };
         setColors(detectedColors);
-        // Initialize preview vars
+        // Initialize preview vars from saved defaults or empty
         const vars = extractVariables(template.html);
         const defaults: Record<string, string> = {};
-        for (const v of vars) defaults[v] = "";
+        for (const v of vars) defaults[v] = template.defaultVariables?.[v] || "";
         setPreviewVars(defaults);
         setLoaded(true);
       }
     }
   }, [isEditing, templates, templateId, loaded]);
 
-  // Detected variables
-  const detectedVars = useMemo(() => extractVariables(html), [html]);
+  // Detected variables - exclude variables that are set elsewhere (like subject)
+  const detectedVars = useMemo(() => 
+    extractVariables(html).filter(v => !EXCLUDED_VARIABLES.has(v)), [html]);
 
   // Validation for preview vars
   const missingRequired = useMemo(() => {
@@ -236,9 +246,55 @@ export function TemplateEditorPage() {
     setPreviewVars((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Handle logo upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    
+    setUploadingLogo(true);
+    try {
+      const result = await uploadLogo(user.uid, file);
+      handlePreviewVarChange("logo_url", result.url);
+      toast.success("Logo enviado com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao enviar logo", String(error));
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   // When saving, persist the HTML with colors baked in (variables remain as {{...}})
   const getSaveHtml = () => {
     return applyColors(html, colors);
+  };
+
+  // Generate plain text from HTML
+  const generatePlainText = (htmlContent: string): string => {
+    // Create a temporary DOM element to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    
+    // Remove script and style tags
+    tempDiv.querySelectorAll('script, style').forEach(el => el.remove());
+    
+    // Get text content
+    let text = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Clean up whitespace
+    text = text
+      .replace(/\s+/g, ' ')           // Replace multiple spaces with single
+      .replace(/\n\s*\n/g, '\n\n')    // Clean up multiple newlines
+      .trim();
+    
+    return text;
+  };
+
+  // Auto-generate text when HTML changes
+  const handleAutoGenerateText = () => {
+    const plainText = generatePlainText(getPreviewHtml());
+    setText(plainText);
+    toast.success("Texto plano gerado automaticamente");
   };
 
   const handleSave = async () => {
@@ -247,11 +303,18 @@ export function TemplateEditorPage() {
     if (!html.trim()) { toast.error("Conteúdo HTML é obrigatório"); return; }
 
     setSaving(true);
+    // Filter out empty values from previewVars
+    const defaultVariables: Record<string, string> = {};
+    for (const [key, value] of Object.entries(previewVars)) {
+      if (value.trim()) defaultVariables[key] = value.trim();
+    }
+    
     const data: EmailTemplateFormData = {
       name,
       subject,
       html: getSaveHtml(),
       text: text || undefined,
+      defaultVariables: Object.keys(defaultVariables).length > 0 ? defaultVariables : undefined,
     };
 
     try {
@@ -299,12 +362,29 @@ export function TemplateEditorPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Newsletter Mensal"
                 />
-                <Input
-                  label="Assunto *"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Use {{variavel}} para placeholders"
-                />
+                <div>
+                  <Input
+                    label="Assunto *"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Use {{variavel}} para placeholders"
+                  />
+                  <div className="mt-2 rounded-lg bg-surface-light/50 p-3">
+                    <p className="text-xs font-medium text-text-muted mb-2">Variáveis disponíveis:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(VARIABLE_LABELS).map(([key, label]) => (
+                        <code
+                          key={key}
+                          className="rounded bg-surface px-2 py-0.5 text-[11px] text-text-muted cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
+                          onClick={() => setSubject(subject + `{{${key}}}`)}
+                          title={`Clique para inserir: ${label}`}
+                        >
+                          {`{{${key}}}`}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -373,21 +453,34 @@ export function TemplateEditorPage() {
 
             {/* Section 4: Plain text */}
             <section>
-              <h3 className="mb-4 text-base font-semibold text-text">4. Texto Plano (opcional)</h3>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text">4. Texto Plano (opcional)</h3>
+                <button
+                  type="button"
+                  onClick={handleAutoGenerateText}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Gerar do HTML
+                </button>
+              </div>
+              <p className="mb-3 text-xs text-text-muted">
+                Versão em texto puro do email, exibida quando o cliente não suporta HTML. Clique em "Gerar do HTML" para criar automaticamente.
+              </p>
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Fallback em texto plano..."
+                placeholder="Versão em texto plano do email..."
                 rows={4}
                 className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </section>
 
-            {/* Section 5: Variables (preview only — fill to test preview) */}
+            {/* Section 5: Variables - Default values saved with template */}
             {detectedVars.length > 0 && (
               <section>
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-text">5. Variáveis (Pré-visualização)</h3>
+                  <h3 className="text-base font-semibold text-text">5. Valores Padrão das Variáveis</h3>
                   {allVariablesFilled ? (
                     <span className="flex items-center gap-1 text-xs font-medium text-success">
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -400,7 +493,7 @@ export function TemplateEditorPage() {
                   )}
                 </div>
                 <p className="mb-3 text-xs text-text-muted">
-                  Preencha as variáveis abaixo para testar o preview. Estes valores não são salvos — serão preenchidos ao criar uma campanha.
+                  Preencha os valores padrão das variáveis. Esses valores serão salvos com o template e pré-preenchidos ao criar campanhas.
                 </p>
 
                 <div className="space-y-3">
@@ -440,6 +533,52 @@ export function TemplateEditorPage() {
                                 : "border-border bg-background focus:border-primary"
                             }`}
                           />
+                        ) : key === "logo_url" ? (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={previewVars[key] || ""}
+                                onChange={(e) => handlePreviewVarChange(key, e.target.value)}
+                                placeholder="https://exemplo.com/logo.png"
+                                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              />
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                                onChange={handleLogoUpload}
+                                className="hidden"
+                              />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingLogo}
+                                className="shrink-0"
+                              >
+                                {uploadingLogo ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                            <div className="flex items-start gap-2 rounded-lg bg-surface-light/50 p-2">
+                              <Image className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" />
+                              <p className="text-xs text-text-muted">
+                                <strong>Formatos:</strong> {LOGO_GUIDELINES.formats.join(", ")} (máx. {LOGO_GUIDELINES.maxSize})<br />
+                                <strong>Tamanho recomendado:</strong> {LOGO_GUIDELINES.recommendedWidth}×{LOGO_GUIDELINES.recommendedHeight}px ({LOGO_GUIDELINES.aspectRatio})<br />
+                                {LOGO_GUIDELINES.notes}
+                              </p>
+                            </div>
+                            {previewVars[key] && (
+                              <div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2">
+                                <img src={previewVars[key]} alt="Logo preview" className="h-8 max-w-[80px] object-contain" />
+                                <span className="text-xs text-text-muted truncate flex-1">{previewVars[key]}</span>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <input
                             type={key.includes("url") ? "url" : "text"}

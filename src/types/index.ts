@@ -114,6 +114,7 @@ export interface EmailTemplate {
   html: string;
   text?: string;
   variables: string[];
+  defaultVariables?: Record<string, string>;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -123,6 +124,7 @@ export interface EmailTemplateFormData {
   subject: string;
   html: string;
   text?: string;
+  defaultVariables?: Record<string, string>;
 }
 
 // Sent email log

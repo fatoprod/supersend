@@ -136,10 +136,12 @@ export function CampaignEditorPage() {
       setRawTemplateHtml(template.html);
       const vars = extractVariables(template.html);
       const defaults: Record<string, string> = {};
-      for (const v of vars) defaults[v] = templateVariables[v] || "";
+      // Use saved default variables from template, or existing values, or empty
+      for (const v of vars) defaults[v] = template.defaultVariables?.[v] || templateVariables[v] || "";
       setTemplateVariables(defaults);
-      setHtml(template.html);
-      setSubject(template.subject);
+      // Apply default variables to HTML and subject
+      setHtml(computeHtml(template.html, defaults));
+      setSubject(replaceVariables(template.subject, defaults));
     }
   };
 
