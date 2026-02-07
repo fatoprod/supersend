@@ -40,6 +40,74 @@ const COLOR_CONFIG: Record<string, { label: string; description: string }> = {
   background: { label: "Fundo", description: "Fundo do email" },
 };
 
+const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{subject}}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f7; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f7; padding: 24px 0;">
+    <tr>
+      <td align="center">
+        <!-- Container -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #6366f1; padding: 32px 40px; text-align: center;">
+              <img src="{{logo_url}}" alt="{{company}}" width="160" height="auto" style="display: block; margin: 0 auto; max-width: 160px; height: auto;" />
+              <p style="margin: 12px 0 0 0; font-size: 14px; color: #c7d2fe; letter-spacing: 0.5px;">{{company}}</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 40px 32px 40px;">
+              <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 700; color: #1e1b4b; line-height: 1.3;">{{title}}</h1>
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #4b5563; line-height: 1.6;">{{content}}</p>
+              
+              <!-- CTA Button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 8px 0 0 0;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: #6366f1;">
+                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px;">{{cta_text}}</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 40px;">
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;" />
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px 32px 40px; text-align: center;">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+                Você recebeu este email porque está inscrito em {{company}}.
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+                <a href="{{unsubscribe_url}}" style="color: #6366f1; text-decoration: underline;">Descadastrar</a> · <a href="{{preferences_url}}" style="color: #6366f1; text-decoration: underline;">Preferências</a>
+              </p>
+              <p style="margin: 16px 0 0 0; font-size: 12px; color: #d1d5db;">
+                {{company_address}}
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
 function extractVariables(html: string): string[] {
   const matches = html.match(/\{\{\s*([\w]+)\s*\}\}/g) || [];
   return [...new Set(matches.map((m) => m.replace(/[\{\}\s]/g, "")))];
@@ -86,13 +154,20 @@ export function TemplateEditorPage() {
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
 
-  // Form state
+  // Form state - use default HTML template for new templates
   const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [html, setHtml] = useState("");
+  const [subject, setSubject] = useState(isEditing ? "" : "{{subject}}");
+  const [html, setHtml] = useState(isEditing ? "" : DEFAULT_HTML_TEMPLATE);
   const [text, setText] = useState("");
   const [colors, setColors] = useState<Record<string, string>>({ ...DEFAULT_COLORS });
-  const [previewVars, setPreviewVars] = useState<Record<string, string>>({});
+  const [previewVars, setPreviewVars] = useState<Record<string, string>>(() => {
+    if (isEditing) return {};
+    // Initialize preview vars for default template
+    const vars = extractVariables(DEFAULT_HTML_TEMPLATE);
+    const defaults: Record<string, string> = {};
+    for (const v of vars) defaults[v] = "";
+    return defaults;
+  });
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);

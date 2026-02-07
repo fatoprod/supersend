@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthLayout, DashboardLayout } from "./components/layout";
 import {
   DashboardPage,
-  ContactsPage,
+  ContactListsPage,
+  ListContactsPage,
   CampaignsPage,
   CampaignEditorPage,
   TemplatesPage,
@@ -55,7 +56,8 @@ export default function App() {
           {/* Dashboard Routes */}
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/contacts" element={<ContactsPage />} />
+            <Route path="/contacts" element={<ContactListsPage />} />
+            <Route path="/contacts/:listId" element={<ListContactsPage />} />
             <Route path="/campaigns" element={<CampaignsPage />} />
             <Route path="/campaigns/new" element={<CampaignEditorPage />} />
             <Route path="/campaigns/:campaignId/edit" element={<CampaignEditorPage />} />

@@ -1,4 +1,6 @@
 export { DashboardPage } from "./DashboardPage";
+export { ContactListsPage } from "./ContactListsPage";
+export { ListContactsPage } from "./ListContactsPage";
 export { ContactsPage } from "./ContactsPage";
 export { CampaignsPage } from "./CampaignsPage";
 export { CampaignEditorPage } from "./CampaignEditorPage";

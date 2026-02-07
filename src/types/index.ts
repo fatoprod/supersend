@@ -41,6 +41,21 @@ export interface ContactFormData {
   customFields?: Record<string, string>;
 }
 
+// Contact List types
+export interface ContactList {
+  id: string;
+  name: string;
+  description?: string;
+  contactCount: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface ContactListFormData {
+  name: string;
+  description?: string;
+}
+
 // Campaign types
 export type CampaignStatus = 
   | "draft" 
