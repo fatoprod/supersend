@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
 import { Button } from "../components/ui";
-import { Plus, FileText, Copy, Trash2, Edit, Loader2, X } from "lucide-react";
+import { Plus, FileText, Copy, Trash2, Edit, Loader2, X, Eye } from "lucide-react";
 import { useI18n } from "../i18n";
-import { useTemplates, useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useUpdateTemplate, useToast } from "../hooks";
-import type { EmailTemplate, EmailTemplateFormData } from "../types";
+import { useTemplates, useDeleteTemplate, useDuplicateTemplate, useToast } from "../hooks";
+import type { EmailTemplate } from "../types";
 import type { Timestamp } from "firebase/firestore";
 
 function formatDate(ts: Timestamp | undefined): string {
@@ -20,76 +21,34 @@ function formatDate(ts: Timestamp | undefined): string {
 export function TemplatesPage() {
   const { t } = useI18n();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { data: templates, isLoading } = useTemplates();
-  const createTemplate = useCreateTemplate();
   const deleteTemplate = useDeleteTemplate();
   const duplicateTemplate = useDuplicateTemplate();
-  const updateTemplate = useUpdateTemplate();
 
-  const [showModal, setShowModal] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
-  const [formData, setFormData] = useState<EmailTemplateFormData>({
-    name: "",
-    subject: "",
-    html: "",
-    text: "",
-  });
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
 
-  const openCreateModal = () => {
-    setEditingTemplate(null);
-    setFormData({ name: "", subject: "", html: "", text: "" });
-    setShowModal(true);
-  };
-
-  const openEditModal = (template: EmailTemplate) => {
-    setEditingTemplate(template);
-    setFormData({
-      name: template.name,
-      subject: template.subject,
-      html: template.html,
-      text: template.text || "",
-    });
-    setShowModal(true);
-  };
-
-  const handleSave = async () => {
-    if (!formData.name || !formData.subject || !formData.html) {
-      toast.error("Please fill in name, subject, and HTML content");
-      return;
-    }
-
-    try {
-      if (editingTemplate) {
-        await updateTemplate.mutateAsync({
-          templateId: editingTemplate.id,
-          data: formData,
-        });
-        toast.success("Template updated");
-      } else {
-        await createTemplate.mutateAsync(formData);
-        toast.success("Template created");
-      }
-      setShowModal(false);
-    } catch (error) {
-      toast.error("Error", String(error));
-    }
+  const openPreview = (html: string) => {
+    setPreviewHtml(html);
+    setShowPreview(true);
   };
 
   const handleDelete = async (templateId: string) => {
     try {
       await deleteTemplate.mutateAsync(templateId);
-      toast.success("Template deleted");
+      toast.success("Template excluído");
     } catch (error) {
-      toast.error("Error", String(error));
+      toast.error("Erro", String(error));
     }
   };
 
   const handleDuplicate = async (templateId: string) => {
     try {
       await duplicateTemplate.mutateAsync(templateId);
-      toast.success("Template duplicated");
+      toast.success("Template duplicado");
     } catch (error) {
-      toast.error("Error", String(error));
+      toast.error("Erro", String(error));
     }
   };
 
@@ -103,7 +62,7 @@ export function TemplatesPage() {
       <div className="p-6">
         {/* Actions */}
         <div className="mb-6 flex justify-end">
-          <Button onClick={openCreateModal}>
+          <Button onClick={() => navigate("/templates/new")}>
             <Plus className="mr-2 h-4 w-4" />
             {t.templates.newTemplate}
           </Button>
@@ -144,7 +103,10 @@ export function TemplatesPage() {
                     {t.templates.lastUpdated} {formatDate(template.updatedAt)}
                   </p>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" className="flex-1" onClick={() => openEditModal(template)}>
+                    <Button size="sm" variant="secondary" onClick={() => openPreview(template.html)} title="Preview">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="secondary" className="flex-1" onClick={() => navigate(`/templates/${template.id}/edit`)}>
                       <Edit className="mr-1 h-3 w-3" />
                       {t.common.edit}
                     </Button>
@@ -162,7 +124,7 @@ export function TemplatesPage() {
             {/* Create New Template Card */}
             <Card
               className="flex cursor-pointer flex-col items-center justify-center border-dashed transition-colors hover:border-primary hover:bg-surface-light/50"
-              onClick={openCreateModal}
+              onClick={() => navigate("/templates/new")}
             >
               <CardContent className="text-center">
                 <div className="mb-4 rounded-full bg-surface-light p-4">
@@ -178,65 +140,23 @@ export function TemplatesPage() {
         )}
       </div>
 
-      {/* Create/Edit Template Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto py-8">
-          <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text">
-                {editingTemplate ? "Edit Template" : t.templates.newTemplate}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-text-muted hover:text-text">
+      {/* Preview Modal */}
+      {showPreview && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="relative w-full max-w-3xl rounded-xl bg-surface shadow-2xl" style={{ height: "80vh" }}>
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h3 className="text-lg font-semibold text-text">Preview do Email</h3>
+              <button onClick={() => setShowPreview(false)} className="rounded-lg p-2 text-text-muted hover:bg-surface-light hover:text-text">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
-              <Input
-                label="Name"
-                value={formData.name}
-                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Template name"
+            <div className="h-[calc(100%-64px)] overflow-hidden rounded-b-xl bg-white">
+              <iframe
+                title="Email Preview"
+                srcDoc={previewHtml}
+                className="h-full w-full border-0"
+                sandbox="allow-same-origin allow-scripts"
               />
-              <Input
-                label={t.templates.subject}
-                value={formData.subject}
-                onChange={(e) => setFormData((p) => ({ ...p, subject: e.target.value }))}
-                placeholder="Email subject (use {{variable}} for placeholders)"
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-text">HTML Content</label>
-                <textarea
-                  value={formData.html}
-                  onChange={(e) => setFormData((p) => ({ ...p, html: e.target.value }))}
-                  placeholder="<html>...</html>"
-                  rows={8}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-text">Plain Text (optional)</label>
-                <textarea
-                  value={formData.text || ""}
-                  onChange={(e) => setFormData((p) => ({ ...p, text: e.target.value }))}
-                  placeholder="Plain text fallback..."
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="secondary" onClick={() => setShowModal(false)}>
-                  {t.common.cancel || "Cancel"}
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={createTemplate.isPending || updateTemplate.isPending}
-                >
-                  {(createTemplate.isPending || updateTemplate.isPending) && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {editingTemplate ? t.settings.saveChanges || "Save" : t.templates.newTemplate}
-                </Button>
-              </div>
             </div>
           </div>
         </div>

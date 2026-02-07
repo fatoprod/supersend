@@ -13,37 +13,102 @@ Plataforma de email marketing com painel completo para gestão de contatos, camp
 ## Funcionalidades
 
 - **Autenticação**: Login com email/senha e Google Sign-In, verificação de email com código de 6 dígitos
-- **Dashboard**: Visão geral com métricas (contatos, campanhas, taxa de abertura, taxa de clique)
+- **Dashboard**: Visão geral com métricas reais do Firestore (contatos, campanhas, taxa de abertura, taxa de clique)
 - **Contatos**: CRUD completo com importação, busca e tags
-- **Campanhas**: Criação, agendamento e envio de campanhas de email
-- **Templates**: Editor de templates de email reutilizáveis
+- **Campanhas**: Criação com seleção de template, preenchimento de variáveis, preview ao vivo 50/50 e envio via Mailgun
+- **Templates**: Editor dedicado com color picker (4 cores), editor HTML, variáveis com validação (obrigatórias/opcionais) e preview ao vivo 50/50
 - **Analytics**: Métricas detalhadas de envio, abertura e cliques
-- **Configurações**: Gerenciamento de conta e preferências
+- **Configurações**: Gerenciamento de conta, email settings, segurança e notificações
 
 ## Estrutura
 
 ```
 supersend/
-├── src/                    # Frontend React
-│   ├── components/         # Componentes reutilizáveis
-│   │   ├── auth/           # LoginForm, RegisterForm, VerifyEmailForm
-│   │   ├── dashboard/      # Componentes do dashboard
-│   │   ├── layout/         # Sidebar, Header, DashboardLayout, AuthLayout
-│   │   └── ui/             # Button, Input, Card
-│   ├── hooks/              # useAuth, useToast
-│   ├── lib/                # Firebase config
-│   ├── pages/              # Páginas da aplicação
-│   ├── stores/             # Zustand stores (auth, ui)
-│   └── types/              # TypeScript types
-├── functions/              # Firebase Functions (Node.js 20)
+├── src/                        # Frontend React
+│   ├── components/             # Componentes reutilizáveis
+│   │   ├── auth/               # LoginForm, RegisterForm, VerifyEmailForm
+│   │   ├── dashboard/          # Componentes do dashboard
+│   │   ├── layout/             # Sidebar, Header, DashboardLayout, AuthLayout
+│   │   └── ui/                 # Button, Input, Card
+│   ├── hooks/                  # React Query hooks
+│   │   ├── useAuth.ts          # Autenticação
+│   │   ├── useCampaigns.ts     # CRUD + envio de campanhas
+│   │   ├── useContacts.ts      # CRUD + importação de contatos
+│   │   ├── useTemplates.ts     # CRUD + duplicação de templates
+│   │   ├── useDashboard.ts     # Stats do dashboard e analytics
+│   │   ├── useSettings.ts      # Configurações do usuário
+│   │   └── useToast.tsx        # Sistema de notificações
+│   ├── i18n/                   # Internacionalização (pt-BR, en)
+│   ├── lib/                    # Firebase config + serviços
+│   │   ├── firebase.ts         # Config Firebase (named db, storage)
+│   │   └── services/           # Camada de serviços Firestore
+│   │       ├── analytics.ts    # Dashboard stats e métricas
+│   │       ├── campaigns.ts    # CRUD + envio (httpsCallable)
+│   │       ├── contacts.ts     # CRUD + importação + busca
+│   │       ├── settings.ts     # Configurações do usuário
+│   │       └── templates.ts    # CRUD + extração de variáveis
+│   ├── pages/                  # Páginas da aplicação
+│   │   ├── DashboardPage.tsx   # Métricas reais + campanhas recentes
+│   │   ├── ContactsPage.tsx    # Lista, busca, CRUD de contatos
+│   │   ├── CampaignsPage.tsx   # Lista de campanhas + ações
+│   │   ├── CampaignEditorPage.tsx  # Editor de campanha (50/50 com preview)
+│   │   ├── TemplatesPage.tsx   # Lista/grid de templates
+│   │   ├── TemplateEditorPage.tsx  # Editor de template (50/50 com preview)
+│   │   ├── AnalyticsPage.tsx   # Métricas detalhadas
+│   │   ├── SettingsPage.tsx    # Perfil, email, segurança, notificações
+│   │   └── auth/               # Login, Register, VerifyEmail
+│   ├── stores/                 # Zustand stores (auth, ui)
+│   └── types/                  # TypeScript types
+├── functions/                  # Firebase Functions (Node.js 20)
 │   └── src/
-│       ├── index.ts        # Entry point (6 functions exportadas)
-│       ├── auth/           # Verificação de email
-│       └── email/          # Integração Mailgun
-├── firebase.json           # Config Firebase (codebase: supersend)
-├── firestore.rules         # Regras de segurança Firestore
-└── firestore.indexes.json  # Índices Firestore
+│       ├── index.ts            # Entry point (6 functions exportadas)
+│       ├── auth/               # Verificação de email
+│       └── email/              # Integração Mailgun
+├── firebase.json               # Config Firebase (codebase: supersend)
+├── firestore.rules             # Regras de segurança Firestore
+└── firestore.indexes.json      # Índices Firestore
 ```
+
+## Rotas
+
+| Rota | Página | Descrição |
+|------|--------|-----------|
+| `/dashboard` | DashboardPage | Métricas e campanhas recentes |
+| `/contacts` | ContactsPage | Gestão de contatos |
+| `/campaigns` | CampaignsPage | Lista de campanhas |
+| `/campaigns/new` | CampaignEditorPage | Criar nova campanha |
+| `/campaigns/:id/edit` | CampaignEditorPage | Editar campanha existente |
+| `/templates` | TemplatesPage | Lista de templates |
+| `/templates/new` | TemplateEditorPage | Criar novo template |
+| `/templates/:id/edit` | TemplateEditorPage | Editar template existente |
+| `/analytics` | AnalyticsPage | Métricas detalhadas |
+| `/settings` | SettingsPage | Configurações |
+| `/login` | LoginPage | Login |
+| `/register` | RegisterPage | Cadastro |
+| `/verify-email` | VerifyEmailPage | Verificação de email |
+
+## Fluxo de Trabalho
+
+### Templates → Campanhas
+
+1. **Criar template** em `/templates/new`: definir HTML, cores (color picker), assunto e testar com variáveis de preview
+2. **Criar campanha** em `/campaigns/new`: selecionar template, preencher variáveis obrigatórias (empresa, título, conteúdo, botão, etc.), definir destinatários e enviar
+3. Variáveis opcionais não preenchidas (logo, unsubscribe, etc.) são **automaticamente removidas** do HTML final — sem `{{placeholder}}` visível
+
+### Variáveis do Template
+
+| Variável | Tipo | Descrição |
+|----------|------|-----------|
+| `{{company}}` | Obrigatória | Nome da empresa |
+| `{{title}}` | Obrigatória | Título do email |
+| `{{content}}` | Obrigatória | Conteúdo principal |
+| `{{cta_text}}` | Obrigatória | Texto do botão CTA |
+| `{{cta_url}}` | Obrigatória | URL do botão CTA |
+| `{{subject}}` | Obrigatória | Assunto do email |
+| `{{logo_url}}` | Opcional | URL do logo (img removida se vazio) |
+| `{{unsubscribe_url}}` | Opcional | Link de descadastro (link removido se vazio) |
+| `{{preferences_url}}` | Opcional | Link de preferências (link removido se vazio) |
+| `{{company_address}}` | Opcional | Endereço da empresa (parágrafo removido se vazio) |
 
 ## Recursos Nomeados (Multi-App Isolation)
 
@@ -86,6 +151,16 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 | `sendSingleEmail` | Callable | Envia email individual via Mailgun |
 | `processCampaign` | Callable | Processa e envia campanha para lista de contatos |
 | `processScheduledCampaigns` | Scheduled | Verifica e envia campanhas agendadas (a cada 5 min) |
+
+## Firestore Collections
+
+```
+users/{userId}
+├── contacts/       # Contatos do usuário
+├── campaigns/      # Campanhas de email
+├── templates/      # Templates de email
+└── sentEmails/     # Log de emails enviados (status, messageId, opened, clicked)
+```
 
 ## Setup Local
 
@@ -179,6 +254,15 @@ MAILGUN_API_KEY=your_mailgun_key
 MAILGUN_DOMAIN=mg.yourdomain.com
 ```
 
+### Seed de Template Padrão
+
+```bash
+cd functions
+node seed-template.js <USER_UID>
+```
+
+Cria um template padrão com header, conteúdo, botão CTA e footer com 10 variáveis configuráveis.
+
 ### Desenvolvimento
 
 ```bash
@@ -226,6 +310,7 @@ Após o deploy, ativar no Firebase Console:
 | **Functions Codebase** | `supersend` |
 | **Hosting Target** | `supersend` → site `supersendapp` |
 | **Mailgun Domain** | `mg.promocaohp.com.br` |
+| **Mailgun Domains Ativos** | `mg.fatosocial.com`, `mg.promocaohp.com.br`, `mg.fatosocial.com.br` |
 
 ## Licença
 

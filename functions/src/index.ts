@@ -85,13 +85,16 @@ export const sendSingleEmail = functions.https.onCall(async (data, context) => {
   });
   
   // Log sent email
-  await db.collection("users").doc(context.auth.uid).collection("sentEmails").add({
+  const sentData: Record<string, unknown> = {
     to,
     subject,
     sentAt: admin.firestore.FieldValue.serverTimestamp(),
     status: result.success ? "sent" : "failed",
-    messageId: result.messageId,
-  });
+  };
+  if (result.messageId) sentData.messageId = result.messageId;
+  if (result.error) sentData.error = result.error;
+
+  await db.collection("users").doc(context.auth.uid).collection("sentEmails").add(sentData);
   
   return result;
 });
@@ -138,19 +141,21 @@ export const processCampaign = functions.https.onCall(async (data, context) => {
     
     // Log results
     for (const emailResult of result.results) {
+      const sentEmailData: Record<string, unknown> = {
+        campaignId,
+        to: emailResult.to,
+        subject: campaignData.subject,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: emailResult.success ? "sent" : "failed",
+      };
+      if (emailResult.messageId) sentEmailData.messageId = emailResult.messageId;
+      if (emailResult.error) sentEmailData.error = emailResult.error;
+
       await db
         .collection("users")
         .doc(context.auth.uid)
         .collection("sentEmails")
-        .add({
-          campaignId,
-          to: emailResult.to,
-          subject: campaignData.subject,
-          sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          status: emailResult.success ? "sent" : "failed",
-          messageId: emailResult.messageId,
-          error: emailResult.error,
-        });
+        .add(sentEmailData);
     }
     
     await campaignRef.update({
@@ -205,15 +210,17 @@ export const processScheduledCampaigns = functions.pubsub
           
           // Log results
           for (const emailResult of result.results) {
-            await userDoc.ref.collection("sentEmails").add({
+            const sentEmailData: Record<string, unknown> = {
               campaignId: campaignDoc.id,
               to: emailResult.to,
               subject: campaignData.subject,
               sentAt: admin.firestore.FieldValue.serverTimestamp(),
               status: emailResult.success ? "sent" : "failed",
-              messageId: emailResult.messageId,
-              error: emailResult.error,
-            });
+            };
+            if (emailResult.messageId) sentEmailData.messageId = emailResult.messageId;
+            if (emailResult.error) sentEmailData.error = emailResult.error;
+
+            await userDoc.ref.collection("sentEmails").add(sentEmailData);
           }
           
           await campaignDoc.ref.update({

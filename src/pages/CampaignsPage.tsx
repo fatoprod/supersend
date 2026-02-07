@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
-import { Plus, Search, Play, Pause, Eye, Copy, Loader2, X, Trash2 } from "lucide-react";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui";
+import { Plus, Search, Play, Pause, Eye, Copy, Loader2, Trash2, Edit } from "lucide-react";
 import type { CampaignStatus } from "../types";
 import { useI18n } from "../i18n";
-import { useCampaigns, useCreateCampaign, useDeleteCampaign, useSendCampaign, usePauseCampaign, useDuplicateCampaign, useContacts, useToast } from "../hooks";
-import type { Campaign, CampaignFormData } from "../types";
+import { useCampaigns, useDeleteCampaign, useSendCampaign, usePauseCampaign, useDuplicateCampaign, useToast } from "../hooks";
+import type { Campaign } from "../types";
 import type { Timestamp } from "firebase/firestore";
 
 function formatDate(ts: Timestamp | undefined | null): string {
@@ -29,54 +30,19 @@ const statusColors: Record<CampaignStatus, string> = {
 export function CampaignsPage() {
   const { t } = useI18n();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { data: campaigns, isLoading } = useCampaigns();
-  const { data: contacts } = useContacts();
-  const createCampaign = useCreateCampaign();
   const deleteCampaign = useDeleteCampaign();
   const sendCampaign = useSendCampaign();
   const pauseCampaign = usePauseCampaign();
   const duplicateCampaign = useDuplicateCampaign();
 
   const [filter, setFilter] = useState<CampaignStatus | "all">("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCampaign, setNewCampaign] = useState<CampaignFormData>({
-    name: "",
-    subject: "",
-    html: "",
-    recipients: [],
-  });
-  const [selectAllContacts, setSelectAllContacts] = useState(false);
 
   const filteredCampaigns =
     filter === "all"
       ? (campaigns || [])
       : (campaigns || []).filter((c: Campaign) => c.status === filter);
-
-  const handleCreate = async () => {
-    if (!newCampaign.name || !newCampaign.subject || !newCampaign.html) {
-      toast.error("Please fill in name, subject, and HTML content");
-      return;
-    }
-
-    const recipients = selectAllContacts
-      ? (contacts || []).filter((c) => !c.unsubscribed).map((c) => c.email)
-      : newCampaign.recipients;
-
-    if (recipients.length === 0) {
-      toast.error("Please select at least one recipient");
-      return;
-    }
-
-    try {
-      await createCampaign.mutateAsync({ ...newCampaign, recipients });
-      toast.success("Campaign created");
-      setShowCreateModal(false);
-      setNewCampaign({ name: "", subject: "", html: "", recipients: [] });
-      setSelectAllContacts(false);
-    } catch (error) {
-      toast.error("Error", String(error));
-    }
-  };
 
   const handleSend = async (campaignId: string) => {
     try {
@@ -149,7 +115,7 @@ export function CampaignsPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={() => navigate("/campaigns/new")}>
             <Plus className="mr-2 h-4 w-4" />
             {t.campaigns.newCampaign}
           </Button>
@@ -169,7 +135,7 @@ export function CampaignsPage() {
             <p className="mb-6 text-text-muted">
               {t.campaigns.createFirstCampaign}
             </p>
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => navigate("/campaigns/new")}>
               <Plus className="mr-2 h-4 w-4" />
               {t.campaigns.newCampaign}
             </Button>
@@ -236,6 +202,10 @@ export function CampaignsPage() {
                   <div className="flex gap-2">
                     {campaign.status === "draft" && (
                       <>
+                        <Button size="sm" variant="secondary" onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}>
+                          <Edit className="mr-1 h-3 w-3" />
+                          Edit
+                        </Button>
                         <Button size="sm" className="flex-1" onClick={() => handleSend(campaign.id)} disabled={sendCampaign.isPending}>
                           <Play className="mr-1 h-3 w-3" />
                           {t.campaigns.send}
@@ -246,12 +216,10 @@ export function CampaignsPage() {
                       </>
                     )}
                     {campaign.status === "scheduled" && (
-                      <>
-                        <Button size="sm" variant="secondary" className="flex-1" onClick={() => handlePause(campaign.id)}>
-                          <Pause className="mr-1 h-3 w-3" />
-                          {t.campaigns.pause}
-                        </Button>
-                      </>
+                      <Button size="sm" variant="secondary" className="flex-1" onClick={() => handlePause(campaign.id)}>
+                        <Pause className="mr-1 h-3 w-3" />
+                        {t.campaigns.pause}
+                      </Button>
                     )}
                     {campaign.status === "completed" && (
                       <>
@@ -292,64 +260,6 @@ export function CampaignsPage() {
           </div>
         )}
       </div>
-
-      {/* Create Campaign Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto py-8">
-          <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text">{t.campaigns.newCampaign}</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-text-muted hover:text-text">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <Input
-                label={t.dashboard.campaign}
-                value={newCampaign.name}
-                onChange={(e) => setNewCampaign((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Campaign name"
-              />
-              <Input
-                label="Subject"
-                value={newCampaign.subject}
-                onChange={(e) => setNewCampaign((p) => ({ ...p, subject: e.target.value }))}
-                placeholder="Email subject line"
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-text">HTML Content</label>
-                <textarea
-                  value={newCampaign.html}
-                  onChange={(e) => setNewCampaign((p) => ({ ...p, html: e.target.value }))}
-                  placeholder="<html>...</html>"
-                  rows={6}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                />
-              </div>
-              <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-text">
-                  <input
-                    type="checkbox"
-                    checked={selectAllContacts}
-                    onChange={(e) => setSelectAllContacts(e.target.checked)}
-                    className="rounded border-border"
-                  />
-                  Send to all active contacts ({(contacts || []).filter((c) => !c.unsubscribed).length})
-                </label>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
-                  {t.common.cancel || "Cancel"}
-                </Button>
-                <Button onClick={handleCreate} disabled={createCampaign.isPending}>
-                  {createCampaign.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t.campaigns.newCampaign}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

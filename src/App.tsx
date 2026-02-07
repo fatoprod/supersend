@@ -5,7 +5,9 @@ import {
   DashboardPage,
   ContactsPage,
   CampaignsPage,
+  CampaignEditorPage,
   TemplatesPage,
+  TemplateEditorPage,
   AnalyticsPage,
   SettingsPage,
   LoginPage,
@@ -55,7 +57,11 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/campaigns" element={<CampaignsPage />} />
+            <Route path="/campaigns/new" element={<CampaignEditorPage />} />
+            <Route path="/campaigns/:campaignId/edit" element={<CampaignEditorPage />} />
             <Route path="/templates" element={<TemplatesPage />} />
+            <Route path="/templates/new" element={<TemplateEditorPage />} />
+            <Route path="/templates/:templateId/edit" element={<TemplateEditorPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
