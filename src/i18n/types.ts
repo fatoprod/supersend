@@ -162,6 +162,7 @@ export interface Translations {
     bouncePercent: string;
     allCampaigns: string;
     clearFilter: string;
+    refresh: string;
     recipientDetails: string;
     recipient: string;
     statusLabel: string;

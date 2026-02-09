@@ -154,6 +154,7 @@ export const en: Translations = {
     bouncePercent: "Bounce %",
     allCampaigns: "All campaigns",
     clearFilter: "Clear filter",
+    refresh: "Refresh",
     recipientDetails: "Recipient Details",
     recipient: "Recipient",
     statusLabel: "Status",

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
-import { Mail, Eye, MousePointer, UserMinus, AlertCircle, CheckCircle, ShieldAlert, Loader2, Filter } from "lucide-react";
+import { Mail, Eye, MousePointer, UserMinus, AlertCircle, CheckCircle, ShieldAlert, Loader2, Filter, RefreshCw } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useAnalyticsData, useCampaigns } from "../hooks";
 
@@ -9,7 +9,7 @@ export function AnalyticsPage() {
   const { t } = useI18n();
   const [selectedCampaign, setSelectedCampaign] = useState<string>("");
   const { data: campaigns } = useCampaigns();
-  const { data: analytics, isLoading } = useAnalyticsData(selectedCampaign || undefined);
+  const { data: analytics, isLoading, refetch, isFetching } = useAnalyticsData(selectedCampaign || undefined);
 
   if (isLoading) {
     return (
@@ -73,6 +73,16 @@ export function AnalyticsPage() {
               {t.analytics.clearFilter}
             </button>
           )}
+          <div className="ml-auto">
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-muted hover:bg-surface-hover hover:text-text transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              {t.analytics.refresh}
+            </button>
+          </div>
         </div>
         {/* Overview Stats - Row 1 */}
         <div className="mb-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">

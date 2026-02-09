@@ -154,6 +154,7 @@ export const ptBR: Translations = {
     bouncePercent: "Rejeição %",
     allCampaigns: "Todas as campanhas",
     clearFilter: "Limpar filtro",
+    refresh: "Atualizar",
     recipientDetails: "Detalhes por Destinatário",
     recipient: "Destinatário",
     statusLabel: "Status",
