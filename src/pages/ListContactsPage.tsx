@@ -121,7 +121,7 @@ export function ListContactsPage() {
   };
 
   const downloadCSVTemplate = () => {
-    const csvContent = "email;firstName;lastName;company\nexample@email.com;John;Doe;Company Name";
+    const csvContent = "\uFEFFemail;firstName;lastName;company\nexample@email.com;João;Silva;Empresa X";
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -133,8 +133,17 @@ export function ListContactsPage() {
     const file = e.target.files?.[0];
     if (!file || !listId) return;
 
-    const text = await file.text();
-    const lines = text.split("\n").filter((l) => l.trim());
+    // Try UTF-8 first, fallback to Windows-1252 (Brazilian Excel default)
+    let text = await file.text();
+    if (text.includes("\ufffd")) {
+      // Replacement character detected — file is likely Windows-1252
+      const buffer = await file.arrayBuffer();
+      const decoder = new TextDecoder("windows-1252");
+      text = decoder.decode(buffer);
+    }
+    // Remove BOM if present
+    text = text.replace(/^\uFEFF/, "");
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) {
       toast.error("CSV deve ter cabeçalhos e pelo menos uma linha");
       return;

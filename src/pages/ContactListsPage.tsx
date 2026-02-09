@@ -70,7 +70,7 @@ export function ContactListsPage() {
   };
 
   const downloadCSVTemplate = () => {
-    const csvContent = "email;firstName;lastName;company\nexample@email.com;John;Doe;Company Name";
+    const csvContent = "\uFEFFemail;firstName;lastName;company\nexample@email.com;João;Silva;Empresa X";
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);

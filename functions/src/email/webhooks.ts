@@ -85,19 +85,21 @@ export async function processWebhookEvent(
   const cleanMessageId = messageId.replace(/^<|>$/g, "");
 
   // Search across all users' sentEmails for matching messageId
-  // We use collectionGroup query to find the document
-  const sentEmailsQuery = await db
+  // Firestore stores messageIds WITH angle brackets, so try that format first
+  const bracketedId = `<${cleanMessageId}>`;
+  let sentEmailsQuery = await db
     .collectionGroup("sentEmails")
-    .where("messageId", "==", cleanMessageId)
+    .where("messageId", "==", bracketedId)
     .limit(1)
     .get();
 
-  // Also try with angle brackets (in case it was stored that way)
   let sentEmailDoc = sentEmailsQuery.docs[0];
+
+  // Fallback: try without angle brackets
   if (!sentEmailDoc) {
     const altQuery = await db
       .collectionGroup("sentEmails")
-      .where("messageId", "==", `<${cleanMessageId}>`)
+      .where("messageId", "==", cleanMessageId)
       .limit(1)
       .get();
     sentEmailDoc = altQuery.docs[0];
