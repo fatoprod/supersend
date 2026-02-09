@@ -82,6 +82,9 @@ export async function executeCampaignSend(
     total: result.results.length,
     sent: result.results.filter((r: EmailResult) => r.success).length,
     failed: result.results.filter((r: EmailResult) => !r.success).length,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
   };
 
   await campaignRef.update({

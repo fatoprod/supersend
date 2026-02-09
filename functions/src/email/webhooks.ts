@@ -182,7 +182,36 @@ export async function processWebhookEvent(
       return { processed: false, event, messageId: cleanMessageId };
   }
 
+  // Check if this is a first-time event (for deduplicating campaign stat increments)
+  const existingData = sentEmailDoc.data();
+  const isFirstOpen = event === "opened" && !existingData.opened;
+  const isFirstClick = event === "clicked" && !existingData.clicked;
+  const isNewBounce = (event === "bounced" || event === "failed") && existingData.status !== "bounced";
+
   await sentEmailDoc.ref.update(updateData);
+
+  // Update campaign stats counters
+  const campaignId = existingData.campaignId;
+  if (campaignId) {
+    // Extract userId from sentEmail path: users/{userId}/sentEmails/{docId}
+    const pathParts = sentEmailDoc.ref.path.split("/");
+    const userId = pathParts[1];
+    const campaignRef = db.collection("users").doc(userId).collection("campaigns").doc(campaignId);
+
+    const statsUpdate: Record<string, unknown> = {};
+    if (isFirstOpen) statsUpdate["stats.opened"] = admin.firestore.FieldValue.increment(1);
+    if (isFirstClick) statsUpdate["stats.clicked"] = admin.firestore.FieldValue.increment(1);
+    if (isNewBounce) statsUpdate["stats.bounced"] = admin.firestore.FieldValue.increment(1);
+
+    if (Object.keys(statsUpdate).length > 0) {
+      try {
+        await campaignRef.update(statsUpdate);
+        console.log(`Updated campaign ${campaignId} stats:`, Object.keys(statsUpdate));
+      } catch (err) {
+        console.error(`Failed to update campaign stats for ${campaignId}:`, err);
+      }
+    }
+  }
 
   console.log(`Processed ${event} event for messageId: ${cleanMessageId}`);
   return { processed: true, event, messageId: cleanMessageId };
