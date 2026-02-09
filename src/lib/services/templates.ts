@@ -11,16 +11,11 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { extractVariables } from "../templateUtils";
 import type { EmailTemplate, EmailTemplateFormData } from "../../types";
 
 function templatesRef(userId: string) {
   return collection(db, "users", userId, "templates");
-}
-
-function extractVariables(html: string): string[] {
-  const matches = html.match(/\{\{(\w+)\}\}/g);
-  if (!matches) return [];
-  return [...new Set(matches.map((m) => m.replace(/\{\{|\}\}/g, "")))];
 }
 
 export async function getTemplates(userId: string): Promise<EmailTemplate[]> {

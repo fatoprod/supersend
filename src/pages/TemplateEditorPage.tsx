@@ -1,35 +1,24 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Button, Input } from "../components/ui";
+import { Button, Input, EmailPreviewModal } from "../components/ui";
 import {
-  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, X, AlertCircle, CheckCircle2, Upload, Image,
+  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, AlertCircle, CheckCircle2, Upload, Image,
 } from "lucide-react";
 import { useTemplates, useCreateTemplate, useUpdateTemplate, useToast } from "../hooks";
 import { uploadLogo, LOGO_GUIDELINES } from "../lib/services/storage";
 import { useAuth } from "../hooks";
 import type { EmailTemplate, EmailTemplateFormData } from "../types";
-
-// Variables that are required — must be filled before sending a campaign
-const REQUIRED_VARIABLES = new Set([
-  "company", "title", "content",
-]);
+import {
+  REQUIRED_VARIABLES,
+  VARIABLE_LABELS,
+  extractVariables,
+  replaceVariables,
+  cleanUnfilledOptionalVars,
+} from "../lib/templateUtils";
 
 // Variables to exclude from the form (they are set elsewhere)
 const EXCLUDED_VARIABLES = new Set(["subject", "logo_width"]);
-
-const VARIABLE_LABELS: Record<string, string> = {
-  company: "Nome da Empresa",
-  title: "Título do Email",
-  content: "Conteúdo",
-  cta_text: "Texto do Botão",
-  cta_url: "URL do Botão",
-  subject: "Assunto",
-  logo_url: "URL do Logo",
-  unsubscribe_url: "URL de Descadastro",
-  preferences_url: "URL de Preferências",
-  company_address: "Endereço da Empresa",
-};
 
 const DEFAULT_COLORS: Record<string, string> = {
   primary: "#6366f1",
@@ -112,31 +101,6 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
   </table>
 </body>
 </html>`;
-
-function extractVariables(html: string): string[] {
-  const matches = html.match(/\{\{\s*([\w]+)\s*\}\}/g) || [];
-  return [...new Set(matches.map((m) => m.replace(/[\{\}\s]/g, "")))];
-}
-
-function replaceVariables(html: string, vars: Record<string, string>): string {
-  let result = html;
-  for (const [key, value] of Object.entries(vars)) {
-    if (value) {
-      const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g");
-      result = result.replace(regex, value);
-    }
-  }
-  return result;
-}
-
-function cleanUnfilledOptionalVars(html: string): string {
-  let result = html;
-  result = result.replace(/<img[^>]*src="[^"]*\{\{[^}]+\}\}[^"]*"[^>]*\/?>/gi, "");
-  result = result.replace(/<a[^>]*href="[^"]*\{\{[^}]+\}\}[^"]*"[^>]*>.*?<\/a>/gi, "");
-  result = result.replace(/\{\{\s*\w+\s*\}\}/g, "");
-  result = result.replace(/<p[^>]*>\s*([·\s]|&middot;)*\s*<\/p>/gi, "");
-  return result;
-}
 
 function applyColors(html: string, colorMap: Record<string, string>): string {
   let result = html;
@@ -707,26 +671,11 @@ export function TemplateEditorPage() {
       </div>
 
       {/* Fullscreen Preview Modal */}
-      {showPreview && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="relative w-full max-w-3xl rounded-xl bg-surface shadow-2xl" style={{ height: "85vh" }}>
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h3 className="text-lg font-semibold text-text">Preview do Email</h3>
-              <button onClick={() => setShowPreview(false)} className="rounded-lg p-2 text-text-muted hover:bg-surface-light hover:text-text">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="h-[calc(100%-64px)] overflow-hidden rounded-b-xl bg-white">
-              <iframe
-                title="Email Preview"
-                srcDoc={getPreviewHtml()}
-                className="h-full w-full border-0"
-                sandbox="allow-same-origin allow-scripts"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <EmailPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        html={getPreviewHtml()}
+      />
     </>
   );
 }

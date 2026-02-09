@@ -2,7 +2,8 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
 import { defineString } from "firebase-functions/params";
-import { sendEmail, sendBulkEmails, downloadFileAsBuffer, AttachmentData } from "./email/mailgun";
+import { sendEmail } from "./email/mailgun";
+import { buildSentEmailRecord, executeCampaignSend } from "./email/campaignHelper";
 import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
 import { verifyWebhookSignature, processWebhookEvent } from "./email/webhooks";
 
@@ -90,14 +91,12 @@ export const sendSingleEmail = functions.https.onCall(async (data, context) => {
   });
   
   // Log sent email
-  const sentData: Record<string, unknown> = {
+  const sentData = buildSentEmailRecord("", subject, {
     to,
-    subject,
-    sentAt: admin.firestore.FieldValue.serverTimestamp(),
-    status: result.success ? "sent" : "failed",
-  };
-  if (result.messageId) sentData.messageId = result.messageId;
-  if (result.error) sentData.error = result.error;
+    success: result.success,
+    messageId: result.messageId,
+    error: result.error,
+  });
 
   await db.collection("users").doc(context.auth.uid).collection("sentEmails").add(sentData);
   
@@ -136,56 +135,9 @@ export const processCampaign = functions.https.onCall(async (data, context) => {
   await campaignRef.update({ status: "processing" });
   
   try {
-    // Download attachments from Firebase Storage if present
-    let attachments: AttachmentData[] | undefined;
-    if (campaignData.attachments && campaignData.attachments.length > 0) {
-      attachments = [];
-      for (const att of campaignData.attachments) {
-        const buffer = await downloadFileAsBuffer(att.url);
-        attachments.push({ filename: att.name, data: buffer });
-      }
-    }
-
-    const result = await sendBulkEmails({
-      recipients: campaignData.recipients,
-      subject: campaignData.subject,
-      html: campaignData.html,
-      text: campaignData.text,
-      from: campaignData.from || "noreply@supersend.app",
-      replyTo: campaignData.replyTo || undefined,
-      attachments,
-    });
-    
-    // Log results
-    for (const emailResult of result.results) {
-      const sentEmailData: Record<string, unknown> = {
-        campaignId,
-        to: emailResult.to,
-        subject: campaignData.subject,
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        status: emailResult.success ? "sent" : "failed",
-      };
-      if (emailResult.messageId) sentEmailData.messageId = emailResult.messageId;
-      if (emailResult.error) sentEmailData.error = emailResult.error;
-
-      await db
-        .collection("users")
-        .doc(context.auth.uid)
-        .collection("sentEmails")
-        .add(sentEmailData);
-    }
-    
-    await campaignRef.update({
-      status: "completed",
-      completedAt: admin.firestore.FieldValue.serverTimestamp(),
-      stats: {
-        total: result.results.length,
-        sent: result.results.filter((r) => r.success).length,
-        failed: result.results.filter((r) => !r.success).length,
-      },
-    });
-    
-    return { success: true, stats: result.results.length };
+    const sentEmailsRef = db.collection("users").doc(context.auth.uid).collection("sentEmails");
+    const stats = await executeCampaignSend(db, campaignRef, campaignData, campaignId, sentEmailsRef);
+    return { success: true, stats: stats.total };
   } catch (error) {
     await campaignRef.update({ status: "failed", error: String(error) });
     throw new functions.https.HttpsError("internal", "Failed to process campaign");
@@ -217,49 +169,8 @@ export const processScheduledCampaigns = functions.pubsub
         await campaignDoc.ref.update({ status: "processing" });
         
         try {
-          // Download attachments from Firebase Storage if present
-          let scheduledAttachments: AttachmentData[] | undefined;
-          if (campaignData.attachments && campaignData.attachments.length > 0) {
-            scheduledAttachments = [];
-            for (const att of campaignData.attachments) {
-              const buffer = await downloadFileAsBuffer(att.url);
-              scheduledAttachments.push({ filename: att.name, data: buffer });
-            }
-          }
-
-          const result = await sendBulkEmails({
-            recipients: campaignData.recipients,
-            subject: campaignData.subject,
-            html: campaignData.html,
-            text: campaignData.text,
-            from: campaignData.from || "noreply@supersend.app",
-            attachments: scheduledAttachments,
-          });
-          
-          // Log results
-          for (const emailResult of result.results) {
-            const sentEmailData: Record<string, unknown> = {
-              campaignId: campaignDoc.id,
-              to: emailResult.to,
-              subject: campaignData.subject,
-              sentAt: admin.firestore.FieldValue.serverTimestamp(),
-              status: emailResult.success ? "sent" : "failed",
-            };
-            if (emailResult.messageId) sentEmailData.messageId = emailResult.messageId;
-            if (emailResult.error) sentEmailData.error = emailResult.error;
-
-            await userDoc.ref.collection("sentEmails").add(sentEmailData);
-          }
-          
-          await campaignDoc.ref.update({
-            status: "completed",
-            completedAt: admin.firestore.FieldValue.serverTimestamp(),
-            stats: {
-              total: result.results.length,
-              sent: result.results.filter((r) => r.success).length,
-              failed: result.results.filter((r) => !r.success).length,
-            },
-          });
+          const sentEmailsRef = userDoc.ref.collection("sentEmails");
+          await executeCampaignSend(db, campaignDoc.ref, campaignData, campaignDoc.id, sentEmailsRef);
         } catch (error) {
           await campaignDoc.ref.update({
             status: "failed",

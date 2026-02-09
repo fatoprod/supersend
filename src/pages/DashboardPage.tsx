@@ -3,12 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import { Users, Send, TrendingUp, MousePointer, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useDashboardStats, useRecentCampaigns } from "../hooks";
-import type { Timestamp } from "firebase/firestore";
-
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts) return "—";
-  return ts.toDate().toLocaleDateString();
-}
+import { formatDate } from "../lib/utils";
 
 export function DashboardPage() {
   const { t } = useI18n();

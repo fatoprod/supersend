@@ -2,3 +2,4 @@ export { Button } from "./Button";
 export { Input } from "./Input";
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./Card";
 export { ConfirmModal } from "./ConfirmModal";
+export { EmailPreviewModal } from "./EmailPreviewModal";

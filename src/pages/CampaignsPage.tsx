@@ -7,16 +7,7 @@ import type { CampaignStatus } from "../types";
 import { useI18n } from "../i18n";
 import { useCampaigns, useDeleteCampaign, useSendCampaign, usePauseCampaign, useDuplicateCampaign, useToast } from "../hooks";
 import type { Campaign } from "../types";
-import type { Timestamp } from "firebase/firestore";
-
-function formatDate(ts: Timestamp | undefined | null): string {
-  if (!ts) return "—";
-  try {
-    return ts.toDate().toLocaleDateString();
-  } catch {
-    return String(ts);
-  }
-}
+import { formatDate } from "../lib/utils";
 
 const statusColors: Record<CampaignStatus, string> = {
   draft: "bg-surface-light text-text-muted",

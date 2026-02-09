@@ -5,16 +5,7 @@ import { Button, Card, CardContent, Input, ConfirmModal } from "../components/ui
 import { Plus, Search, Trash2, Loader2, X, Users, Download } from "lucide-react";
 import { useContactLists, useCreateContactList, useDeleteContactList, useToast } from "../hooks";
 import type { ContactList, ContactListFormData } from "../types";
-import type { Timestamp } from "firebase/firestore";
-
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts) return "—";
-  try {
-    return ts.toDate().toLocaleDateString();
-  } catch {
-    return String(ts);
-  }
-}
+import { formatDate, downloadCSVTemplate } from "../lib/utils";
 
 export function ContactListsPage() {
   const { toast } = useToast();
@@ -67,15 +58,6 @@ export function ContactListsPage() {
     } catch (error) {
       toast.error("Erro ao excluir lista", String(error));
     }
-  };
-
-  const downloadCSVTemplate = () => {
-    const csvContent = "\uFEFFemail;firstName;lastName;company\nexample@email.com;João;Silva;Empresa X";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "contacts_template.csv";
-    link.click();
   };
 
   return (

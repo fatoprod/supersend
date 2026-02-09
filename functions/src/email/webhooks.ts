@@ -158,7 +158,7 @@ export async function processWebhookEvent(
 
       // If permanent bounce, mark contact as bounced in their list
       if (eventData.severity === "permanent" && recipient) {
-        await markContactBounced(recipient);
+        await markContactField(recipient, "bounced");
       }
       break;
 
@@ -173,7 +173,7 @@ export async function processWebhookEvent(
 
       // Mark contact as unsubscribed
       if (recipient) {
-        await markContactUnsubscribed(recipient);
+        await markContactField(recipient, "unsubscribed");
       }
       break;
 
@@ -189,9 +189,9 @@ export async function processWebhookEvent(
 }
 
 /**
- * Mark a contact as bounced across all user lists
+ * Mark a contact field across all user lists (bounced, unsubscribed, etc.)
  */
-async function markContactBounced(email: string): Promise<void> {
+async function markContactField(email: string, field: string, value: unknown = true): Promise<void> {
   try {
     const contactsQuery = await db
       .collectionGroup("contacts")
@@ -200,38 +200,14 @@ async function markContactBounced(email: string): Promise<void> {
 
     const batch = db.batch();
     contactsQuery.docs.forEach((doc) => {
-      batch.update(doc.ref, { bounced: true });
+      batch.update(doc.ref, { [field]: value });
     });
 
     if (contactsQuery.docs.length > 0) {
       await batch.commit();
-      console.log(`Marked ${contactsQuery.docs.length} contact(s) as bounced: ${email}`);
+      console.log(`Marked ${contactsQuery.docs.length} contact(s) as ${field}: ${email}`);
     }
   } catch (error) {
-    console.error(`Failed to mark contact bounced: ${email}`, error);
-  }
-}
-
-/**
- * Mark a contact as unsubscribed across all user lists
- */
-async function markContactUnsubscribed(email: string): Promise<void> {
-  try {
-    const contactsQuery = await db
-      .collectionGroup("contacts")
-      .where("email", "==", email)
-      .get();
-
-    const batch = db.batch();
-    contactsQuery.docs.forEach((doc) => {
-      batch.update(doc.ref, { unsubscribed: true });
-    });
-
-    if (contactsQuery.docs.length > 0) {
-      await batch.commit();
-      console.log(`Marked ${contactsQuery.docs.length} contact(s) as unsubscribed: ${email}`);
-    }
-  } catch (error) {
-    console.error(`Failed to mark contact unsubscribed: ${email}`, error);
+    console.error(`Failed to mark contact ${field}: ${email}`, error);
   }
 }

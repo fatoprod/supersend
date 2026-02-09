@@ -1,22 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmModal } from "../components/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmModal, EmailPreviewModal } from "../components/ui";
 import { Button } from "../components/ui";
-import { Plus, FileText, Copy, Trash2, Edit, Loader2, X, Eye } from "lucide-react";
+import { Plus, FileText, Copy, Trash2, Edit, Loader2, Eye } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useTemplates, useDeleteTemplate, useDuplicateTemplate, useToast } from "../hooks";
 import type { EmailTemplate } from "../types";
-import type { Timestamp } from "firebase/firestore";
-
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts) return "—";
-  try {
-    return ts.toDate().toLocaleDateString();
-  } catch {
-    return String(ts);
-  }
-}
+import { formatDate } from "../lib/utils";
 
 export function TemplatesPage() {
   const { t } = useI18n();
@@ -151,26 +142,12 @@ export function TemplatesPage() {
       </div>
 
       {/* Preview Modal */}
-      {showPreview && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="relative w-full max-w-3xl rounded-xl bg-surface shadow-2xl" style={{ height: "80vh" }}>
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h3 className="text-lg font-semibold text-text">Preview do Email</h3>
-              <button onClick={() => setShowPreview(false)} className="rounded-lg p-2 text-text-muted hover:bg-surface-light hover:text-text">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="h-[calc(100%-64px)] overflow-hidden rounded-b-xl bg-white">
-              <iframe
-                title="Email Preview"
-                srcDoc={previewHtml}
-                className="h-full w-full border-0"
-                sandbox="allow-same-origin allow-scripts"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <EmailPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        html={previewHtml}
+        height="80vh"
+      />
 
       {/* Delete Confirm Modal */}
       <ConfirmModal

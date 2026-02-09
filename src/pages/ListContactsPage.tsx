@@ -14,16 +14,7 @@ import {
   useToast,
 } from "../hooks";
 import type { Contact, ContactFormData } from "../types";
-import type { Timestamp } from "firebase/firestore";
-
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts) return "—";
-  try {
-    return ts.toDate().toLocaleDateString();
-  } catch {
-    return String(ts);
-  }
-}
+import { formatDate, downloadCSVTemplate } from "../lib/utils";
 
 export function ListContactsPage() {
   const { toast } = useToast();
@@ -118,15 +109,6 @@ export function ListContactsPage() {
 
   const openDeleteConfirm = (contactId: string, email: string) => {
     setDeleteConfirm({ isOpen: true, contactId, email });
-  };
-
-  const downloadCSVTemplate = () => {
-    const csvContent = "\uFEFFemail;firstName;lastName;company\nexample@email.com;João;Silva;Empresa X";
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "contacts_template.csv";
-    link.click();
   };
 
   const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
