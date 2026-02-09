@@ -12,7 +12,7 @@ import type { EmailTemplate, EmailTemplateFormData } from "../types";
 
 // Variables that are required — must be filled before sending a campaign
 const REQUIRED_VARIABLES = new Set([
-  "company", "title", "content", "cta_text", "cta_url",
+  "company", "title", "content",
 ]);
 
 // Variables to exclude from the form (they are set elsewhere)

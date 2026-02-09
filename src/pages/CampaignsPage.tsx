@@ -233,7 +233,7 @@ export function CampaignsPage() {
                     )}
                     {campaign.status === "completed" && (
                       <>
-                        <Button size="sm" variant="secondary" className="flex-1">
+                        <Button size="sm" variant="secondary" className="flex-1" onClick={() => navigate("/analytics")}>
                           <Eye className="mr-1 h-3 w-3" />
                           {t.campaigns.viewReport}
                         </Button>

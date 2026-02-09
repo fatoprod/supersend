@@ -28,13 +28,13 @@ export function useRecentCampaigns() {
   });
 }
 
-export function useAnalyticsData() {
+export function useAnalyticsData(campaignId?: string) {
   const user = useAuthStore((s) => s.user);
   const userId = user?.uid;
 
   return useQuery({
-    queryKey: ["analytics", userId],
-    queryFn: () => getAnalyticsData(userId!),
+    queryKey: ["analytics", userId, campaignId || "all"],
+    queryFn: () => getAnalyticsData(userId!, campaignId || undefined),
     enabled: !!userId,
   });
 }

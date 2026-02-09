@@ -1,6 +1,8 @@
 import Mailgun from "mailgun.js";
 import FormData from "form-data";
 import { defineString } from "firebase-functions/params";
+import * as https from "https";
+import * as http from "http";
 
 // Define config parameters
 const mailgunApiKey = defineString("MAILGUN_API_KEY");
@@ -9,6 +11,11 @@ const mailgunDomain = defineString("MAILGUN_DOMAIN");
 // Initialize Mailgun client
 const mailgun = new Mailgun(FormData);
 
+export interface AttachmentData {
+  filename: string;
+  data: Buffer;
+}
+
 interface SendEmailOptions {
   to: string;
   subject: string;
@@ -16,6 +23,7 @@ interface SendEmailOptions {
   text?: string;
   from: string;
   replyTo?: string;
+  attachments?: AttachmentData[];
 }
 
 interface SendEmailResult {
@@ -31,6 +39,7 @@ interface BulkEmailOptions {
   text?: string;
   from: string;
   replyTo?: string;
+  attachments?: AttachmentData[];
 }
 
 interface BulkEmailResult {
@@ -60,6 +69,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       html: options.html,
       template: "",
       ...(options.replyTo ? { "h:Reply-To": options.replyTo } : {}),
+      ...(options.attachments && options.attachments.length > 0
+        ? { attachment: options.attachments.map((a) => ({ filename: a.filename, data: a.data })) }
+        : {}),
     });
 
     return {
@@ -104,6 +116,9 @@ export async function sendBulkEmails(options: BulkEmailOptions): Promise<BulkEma
             html: options.html,
             template: "",
             ...(options.replyTo ? { "h:Reply-To": options.replyTo } : {}),
+            ...(options.attachments && options.attachments.length > 0
+              ? { attachment: options.attachments.map((a) => ({ filename: a.filename, data: a.data })) }
+              : {}),
           });
 
           return {
@@ -148,4 +163,32 @@ export function generateEmailHtml(
   }
   
   return html;
+}
+
+/**
+ * Download a file from a URL and return as Buffer
+ * Used to download attachments from Firebase Storage before sending via Mailgun
+ */
+export function downloadFileAsBuffer(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith("https") ? https : http;
+    client.get(url, (res) => {
+      // Follow redirects
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const redirectUrl = res.headers.location;
+        if (redirectUrl) {
+          downloadFileAsBuffer(redirectUrl).then(resolve).catch(reject);
+          return;
+        }
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`Failed to download file: HTTP ${res.statusCode}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("error", reject);
+    }).on("error", reject);
+  });
 }

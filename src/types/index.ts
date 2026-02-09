@@ -82,6 +82,7 @@ export interface Campaign {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   stats?: CampaignStats;
+  attachments?: CampaignAttachment[];
   error?: string;
 }
 
@@ -95,6 +96,14 @@ export interface CampaignStats {
   unsubscribed?: number;
 }
 
+export interface CampaignAttachment {
+  name: string;
+  url: string;
+  path: string;
+  size: number;
+  type: string;
+}
+
 export interface CampaignFormData {
   name: string;
   subject: string;
@@ -104,6 +113,7 @@ export interface CampaignFormData {
   text?: string;
   recipients: string[];
   scheduledAt?: Date;
+  attachments?: CampaignAttachment[];
 }
 
 // Email template types

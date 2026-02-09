@@ -152,6 +152,17 @@ export const ptBR: Translations = {
     openPercent: "Abertura %",
     clickPercent: "Clique %",
     bouncePercent: "Rejeição %",
+    allCampaigns: "Todas as campanhas",
+    clearFilter: "Limpar filtro",
+    recipientDetails: "Detalhes por Destinatário",
+    recipient: "Destinatário",
+    statusLabel: "Status",
+    deliveredLabel: "Entregue",
+    openedLabel: "Aberto",
+    clickedLabel: "Clicado",
+    complainedLabel: "Spam",
+    deliveredStatus: "Entregue",
+    sentStatus: "Enviado",
   },
 
   settings: {

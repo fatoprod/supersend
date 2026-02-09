@@ -53,6 +53,7 @@ export async function createCampaign(userId: string, data: CampaignFormData): Pr
     updatedAt: serverTimestamp(),
     stats: null,
     error: null,
+    attachments: data.attachments || [],
   });
   return docRef.id;
 }
@@ -128,6 +129,7 @@ export async function duplicateCampaign(userId: string, campaignId: string): Pro
     updatedAt: serverTimestamp(),
     stats: null,
     error: null,
+    attachments: original.attachments || [],
   });
   return docRef.id;
 }

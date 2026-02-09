@@ -160,6 +160,17 @@ export interface Translations {
     openPercent: string;
     clickPercent: string;
     bouncePercent: string;
+    allCampaigns: string;
+    clearFilter: string;
+    recipientDetails: string;
+    recipient: string;
+    statusLabel: string;
+    deliveredLabel: string;
+    openedLabel: string;
+    clickedLabel: string;
+    complainedLabel: string;
+    deliveredStatus: string;
+    sentStatus: string;
   };
 
   // Settings

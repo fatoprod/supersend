@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
-import { Mail, Eye, MousePointer, UserMinus, AlertCircle, CheckCircle, ShieldAlert, Loader2 } from "lucide-react";
+import { Mail, Eye, MousePointer, UserMinus, AlertCircle, CheckCircle, ShieldAlert, Loader2, Filter } from "lucide-react";
 import { useI18n } from "../i18n";
-import { useAnalyticsData } from "../hooks";
+import { useAnalyticsData, useCampaigns } from "../hooks";
 
 export function AnalyticsPage() {
   const { t } = useI18n();
-  const { data: analytics, isLoading } = useAnalyticsData();
+  const [selectedCampaign, setSelectedCampaign] = useState<string>("");
+  const { data: campaigns } = useCampaigns();
+  const { data: analytics, isLoading } = useAnalyticsData(selectedCampaign || undefined);
 
   if (isLoading) {
     return (
@@ -36,6 +39,7 @@ export function AnalyticsPage() {
     complainedRate: 0,
     complainedRateChange: 0,
     topCampaigns: [],
+    recipients: [],
   };
 
   return (
@@ -46,8 +50,32 @@ export function AnalyticsPage() {
       />
 
       <div className="p-6">
-        {/* Overview Stats */}
-        <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {/* Campaign Filter */}
+        <div className="mb-6 flex items-center gap-3">
+          <Filter className="h-5 w-5 text-text-muted" />
+          <select
+            value={selectedCampaign}
+            onChange={(e) => setSelectedCampaign(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">{t.analytics.allCampaigns}</option>
+            {(campaigns || []).map((campaign) => (
+              <option key={campaign.id} value={campaign.id}>
+                {campaign.name}
+              </option>
+            ))}
+          </select>
+          {selectedCampaign && (
+            <button
+              onClick={() => setSelectedCampaign("")}
+              className="text-sm text-primary hover:underline"
+            >
+              {t.analytics.clearFilter}
+            </button>
+          )}
+        </div>
+        {/* Overview Stats - Row 1 */}
+        <div className="mb-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-0">
               <div className="flex items-center gap-3">
@@ -111,7 +139,10 @@ export function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Overview Stats - Row 2 */}
+        <div className="mb-8 grid gap-4 md:grid-cols-3">
           <Card>
             <CardContent className="p-0">
               <div className="flex items-center gap-3">
@@ -160,6 +191,88 @@ export function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recipients Detail (when campaign is filtered) */}
+        {selectedCampaign && data.recipients && data.recipients.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>{t.analytics.recipientDetails}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border text-left text-sm text-text-muted">
+                      <th className="pb-3 font-medium">{t.analytics.recipient}</th>
+                      <th className="pb-3 font-medium text-center">{t.analytics.statusLabel}</th>
+                      <th className="pb-3 font-medium text-center">{t.analytics.deliveredLabel}</th>
+                      <th className="pb-3 font-medium text-center">{t.analytics.openedLabel}</th>
+                      <th className="pb-3 font-medium text-center">{t.analytics.clickedLabel}</th>
+                      <th className="pb-3 font-medium text-center">{t.analytics.complainedLabel}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recipients.map((r, index) => (
+                      <tr
+                        key={index}
+                        className="border-b border-border/50 last:border-0"
+                      >
+                        <td className="py-3 font-medium text-text">
+                          {r.to}
+                        </td>
+                        <td className="py-3 text-center">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              r.status === "bounced"
+                                ? "bg-error/10 text-error"
+                                : r.delivered
+                                ? "bg-success/10 text-success"
+                                : "bg-surface-light text-text-muted"
+                            }`}
+                          >
+                            {r.status === "bounced"
+                              ? (r.bounceSeverity === "permanent" ? "Bounce (perm)" : "Bounce (temp)")
+                              : r.delivered
+                              ? t.analytics.deliveredStatus
+                              : t.analytics.sentStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          {r.delivered ? (
+                            <CheckCircle className="mx-auto h-4 w-4 text-success" />
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          {r.opened ? (
+                            <span className="text-sm font-medium text-secondary">{r.openCount}x</span>
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          {r.clicked ? (
+                            <span className="text-sm font-medium text-accent">{r.clickCount}x</span>
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          {r.complained ? (
+                            <ShieldAlert className="mx-auto h-4 w-4 text-warning" />
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Top Campaigns */}
         <div className="grid gap-6 lg:grid-cols-2">

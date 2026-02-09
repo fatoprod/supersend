@@ -116,8 +116,8 @@ maria@email.com;Maria;Santos;;lead
 | `{{company}}` | Obrigatória | Nome da empresa |
 | `{{title}}` | Obrigatória | Título do email |
 | `{{content}}` | Obrigatória | Conteúdo principal |
-| `{{cta_text}}` | Obrigatória | Texto do botão CTA |
-| `{{cta_url}}` | Obrigatória | URL do botão CTA |
+| `{{cta_text}}` | Opcional | Texto do botão CTA (botão removido se vazio) |
+| `{{cta_url}}` | Opcional | URL do botão CTA (botão removido se vazio) |
 | `{{subject}}` | Obrigatória | Assunto do email |
 | `{{logo_url}}` | Opcional | URL do logo (img removida se vazio) |
 | `{{unsubscribe_url}}` | Opcional | Link de descadastro (link removido se vazio) |

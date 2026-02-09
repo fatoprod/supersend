@@ -152,6 +152,17 @@ export const en: Translations = {
     openPercent: "Open %",
     clickPercent: "Click %",
     bouncePercent: "Bounce %",
+    allCampaigns: "All campaigns",
+    clearFilter: "Clear filter",
+    recipientDetails: "Recipient Details",
+    recipient: "Recipient",
+    statusLabel: "Status",
+    deliveredLabel: "Delivered",
+    openedLabel: "Opened",
+    clickedLabel: "Clicked",
+    complainedLabel: "Spam",
+    deliveredStatus: "Delivered",
+    sentStatus: "Sent",
   },
 
   settings: {

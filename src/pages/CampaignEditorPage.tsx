@@ -2,15 +2,17 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
 import { Button, Input } from "../components/ui";
-import { ArrowLeft, Eye, Loader2, Save, Send, FileText, Plus, X, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Save, Send, FileText, Plus, X, AlertCircle, CheckCircle2, ChevronDown, Paperclip, Trash2 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useCampaigns, useCreateCampaign, useUpdateCampaign, useSendCampaign, useTemplates, useToast, useSettings } from "../hooks";
 import { useContactLists, useContactsInList } from "../hooks/useContactLists";
-import type { Campaign, CampaignFormData, EmailTemplate } from "../types";
+import type { Campaign, CampaignFormData, CampaignAttachment, EmailTemplate } from "../types";
+import { uploadAttachment, deleteAttachment, validateAttachmentTotal, formatFileSize } from "../lib/services/storage";
+import { useAuthStore } from "../stores/authStore";
 
 // Variables that are required — must be filled before sending
 const REQUIRED_VARIABLES = new Set([
-  "company", "title", "content", "cta_text", "cta_url", "subject",
+  "company", "title", "content", "subject",
 ]);
 
 // Variables managed automatically (not shown in campaign form)
@@ -68,6 +70,7 @@ export function CampaignEditorPage() {
   const updateCampaign = useUpdateCampaign();
   const sendCampaignMutation = useSendCampaign();
   const { data: settings } = useSettings();
+  const user = useAuthStore((s) => s.user);
 
   // Form state
   const [name, setName] = useState("");
@@ -80,6 +83,8 @@ export function CampaignEditorPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [attachments, setAttachments] = useState<CampaignAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   // Fetch contacts from selected list
   const { data: listContacts } = useContactsInList(selectedListId || "");
@@ -97,6 +102,7 @@ export function CampaignEditorPage() {
         setSubject(campaign.subject);
         setHtml(campaign.html);
         setSelectedTemplateId("custom");
+        setAttachments(campaign.attachments || []);
         setLoaded(true);
       }
     }
@@ -207,6 +213,48 @@ export function CampaignEditorPage() {
     return true;
   };
 
+  // Attachment handlers
+  const handleAddAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    e.target.value = ""; // Reset input
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande", "Máximo 10MB por arquivo");
+      return;
+    }
+    if (!validateAttachmentTotal(attachments, file)) {
+      toast.error("Limite total excedido", "Total de anexos não pode exceder 25MB");
+      return;
+    }
+
+    setUploadingAttachment(true);
+    try {
+      const tempId = campaignId || "draft";
+      const result = await uploadAttachment(user.uid, tempId, file);
+      setAttachments((prev) => [...prev, result]);
+      toast.success("Anexo adicionado");
+    } catch (error) {
+      toast.error("Erro ao enviar anexo", String(error));
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleRemoveAttachment = async (index: number) => {
+    const attachment = attachments[index];
+    try {
+      await deleteAttachment(attachment.path);
+    } catch {
+      // File may already be deleted, continue
+    }
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const attachmentsTotalSize = useMemo(() => {
+    return attachments.reduce((sum, a) => sum + a.size, 0);
+  }, [attachments]);
+
   const handleSave = async () => {
     if (!validate("save")) return;
     setSaving(true);
@@ -217,6 +265,7 @@ export function CampaignEditorPage() {
       name, subject, html, recipients,
       from: `${fromName} <${fromEmail}>`,
       replyTo: settings?.replyToEmail || undefined,
+      attachments,
     };
 
     try {
@@ -247,6 +296,7 @@ export function CampaignEditorPage() {
       name, subject, html, recipients: data2Recipients,
       from: `${fromName} <${fromEmail}>`,
       replyTo: settings?.replyToEmail || undefined,
+      attachments,
     };
 
     try {
@@ -271,6 +321,7 @@ export function CampaignEditorPage() {
   const varsSection = hasVariables ? 3 : 0;
   const subjectSection = hasVariables ? 4 : 3;
   const recipientsSection = subjectSection + 1;
+  const attachmentsSection = recipientsSection + 1;
 
   return (
     <>
@@ -495,6 +546,52 @@ export function CampaignEditorPage() {
                       </span>
                     </div>
                   </div>
+                )}
+              </div>
+            </section>
+
+            {/* Section: Attachments */}
+            <section>
+              <h3 className="mb-4 text-base font-semibold text-text">{attachmentsSection}. Anexos</h3>
+              <div className="space-y-3">
+                {attachments.map((att, index) => (
+                  <div key={att.path} className="flex items-center justify-between rounded-lg border border-border bg-surface p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Paperclip className="h-4 w-4 shrink-0 text-text-muted" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text truncate">{att.name}</p>
+                        <p className="text-xs text-text-muted">{formatFileSize(att.size)}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(index)}
+                      className="ml-2 shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-error/10 hover:text-error transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-sm text-text-muted hover:border-primary/50 hover:text-primary transition-colors">
+                  {uploadingAttachment ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {uploadingAttachment ? "Enviando..." : "Adicionar anexo"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleAddAttachment}
+                    disabled={uploadingAttachment}
+                  />
+                </label>
+
+                {attachments.length > 0 && (
+                  <p className="text-xs text-text-muted">
+                    Total: {formatFileSize(attachmentsTotalSize)} / 25 MB
+                  </p>
                 )}
               </div>
             </section>

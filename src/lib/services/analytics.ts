@@ -111,19 +111,34 @@ export interface AnalyticsData {
     clickRate: number;
     bounceRate: number;
   }>;
+  recipients?: Array<{
+    to: string;
+    status: string;
+    delivered: boolean;
+    opened: boolean;
+    openCount: number;
+    clicked: boolean;
+    clickCount: number;
+    lastClickedUrl?: string;
+    complained: boolean;
+    bounceSeverity?: string;
+    sentAt: Timestamp;
+  }>;
 }
 
-export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
-  // Get all sent emails
-  const sentEmailsSnapshot = await getDocs(
-    collection(db, "users", userId, "sentEmails")
-  );
+export async function getAnalyticsData(userId: string, campaignId?: string): Promise<AnalyticsData> {
+  // Get sent emails (optionally filtered by campaign)
+  const sentEmailsRef = collection(db, "users", userId, "sentEmails");
+  const sentEmailsQuery = campaignId
+    ? query(sentEmailsRef, where("campaignId", "==", campaignId))
+    : sentEmailsRef;
+  const sentEmailsSnapshot = await getDocs(sentEmailsQuery);
   const sentEmails = sentEmailsSnapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as SentEmail[];
 
-  const totalSent = sentEmails.filter((e) => e.status === "sent").length;
+  const totalSent = sentEmails.length;
   const totalOpened = sentEmails.filter((e) => e.opened).length;
   const totalClicked = sentEmails.filter((e) => e.clicked).length;
   const totalBounced = sentEmails.filter((e) => e.status === "bounced").length;
@@ -155,29 +170,52 @@ export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
     totalContacts > 0 ? (unsubscribed / totalContacts) * 100 : 0;
 
   // Get top campaigns by sent count
-  const campaignsSnapshot = await getDocs(
-    query(
-      collection(db, "users", userId, "campaigns"),
-      where("status", "==", "completed"),
-      orderBy("createdAt", "desc"),
-      limit(5)
-    )
-  );
+  let topCampaigns: Array<{
+    name: string;
+    sent: number;
+    openRate: number;
+    clickRate: number;
+    bounceRate: number;
+  }> = [];
 
-  const topCampaigns = campaignsSnapshot.docs.map((doc) => {
-    const data = doc.data();
-    const stats = data.stats || { sent: 0 };
-    return {
-      name: data.name,
-      sent: stats.sent || 0,
-      openRate:
-        stats.sent > 0 ? Math.round(((stats.opened || 0) / stats.sent) * 1000) / 10 : 0,
-      clickRate:
-        stats.sent > 0 ? Math.round(((stats.clicked || 0) / stats.sent) * 1000) / 10 : 0,
-      bounceRate:
-        stats.sent > 0 ? Math.round(((stats.bounced || 0) / stats.sent) * 1000) / 10 : 0,
-    };
-  });
+  try {
+    const campaignsSnapshot = await getDocs(
+      query(
+        collection(db, "users", userId, "campaigns"),
+        where("status", "==", "completed"),
+        orderBy("createdAt", "desc"),
+        limit(5)
+      )
+    );
+
+    // Calculate stats from sentEmails (webhook data) instead of campaign.stats
+    // If we already have sentEmails loaded (no campaign filter), use them directly
+    // Otherwise fetch all sentEmails for accurate campaign-level stats
+    const allSentEmails = campaignId
+      ? (await getDocs(collection(db, "users", userId, "sentEmails"))).docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as SentEmail[]
+      : sentEmails;
+
+    topCampaigns = campaignsSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const campaignSentEmails = allSentEmails.filter((e) => e.campaignId === doc.id);
+      const sent = campaignSentEmails.length;
+      const opened = campaignSentEmails.filter((e) => e.opened).length;
+      const clicked = campaignSentEmails.filter((e) => e.clicked).length;
+      const bounced = campaignSentEmails.filter((e) => e.status === "bounced").length;
+      return {
+        name: data.name,
+        sent,
+        openRate: sent > 0 ? Math.round((opened / sent) * 1000) / 10 : 0,
+        clickRate: sent > 0 ? Math.round((clicked / sent) * 1000) / 10 : 0,
+        bounceRate: sent > 0 ? Math.round((bounced / sent) * 1000) / 10 : 0,
+      };
+    });
+  } catch (error) {
+    console.warn("Failed to fetch top campaigns (index may be building):", error);
+  }
 
   return {
     emailsSent: totalSent,
@@ -196,5 +234,20 @@ export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
     complainedRate: Math.round(complainedRate * 10) / 10,
     complainedRateChange: 0,
     topCampaigns,
+    ...(campaignId ? {
+      recipients: sentEmails.map((e) => ({
+        to: e.to,
+        status: e.status,
+        delivered: !!e.delivered,
+        opened: !!e.opened,
+        openCount: e.openCount || 0,
+        clicked: !!e.clicked,
+        clickCount: e.clickCount || 0,
+        lastClickedUrl: e.lastClickedUrl,
+        complained: !!e.complained,
+        bounceSeverity: e.bounceSeverity,
+        sentAt: e.sentAt,
+      })),
+    } : {}),
   };
 }

@@ -2,7 +2,7 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
 import { defineString } from "firebase-functions/params";
-import { sendEmail, sendBulkEmails } from "./email/mailgun";
+import { sendEmail, sendBulkEmails, downloadFileAsBuffer, AttachmentData } from "./email/mailgun";
 import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
 import { verifyWebhookSignature, processWebhookEvent } from "./email/webhooks";
 
@@ -136,6 +136,16 @@ export const processCampaign = functions.https.onCall(async (data, context) => {
   await campaignRef.update({ status: "processing" });
   
   try {
+    // Download attachments from Firebase Storage if present
+    let attachments: AttachmentData[] | undefined;
+    if (campaignData.attachments && campaignData.attachments.length > 0) {
+      attachments = [];
+      for (const att of campaignData.attachments) {
+        const buffer = await downloadFileAsBuffer(att.url);
+        attachments.push({ filename: att.name, data: buffer });
+      }
+    }
+
     const result = await sendBulkEmails({
       recipients: campaignData.recipients,
       subject: campaignData.subject,
@@ -143,6 +153,7 @@ export const processCampaign = functions.https.onCall(async (data, context) => {
       text: campaignData.text,
       from: campaignData.from || "noreply@supersend.app",
       replyTo: campaignData.replyTo || undefined,
+      attachments,
     });
     
     // Log results
@@ -206,12 +217,23 @@ export const processScheduledCampaigns = functions.pubsub
         await campaignDoc.ref.update({ status: "processing" });
         
         try {
+          // Download attachments from Firebase Storage if present
+          let scheduledAttachments: AttachmentData[] | undefined;
+          if (campaignData.attachments && campaignData.attachments.length > 0) {
+            scheduledAttachments = [];
+            for (const att of campaignData.attachments) {
+              const buffer = await downloadFileAsBuffer(att.url);
+              scheduledAttachments.push({ filename: att.name, data: buffer });
+            }
+          }
+
           const result = await sendBulkEmails({
             recipients: campaignData.recipients,
             subject: campaignData.subject,
             html: campaignData.html,
             text: campaignData.text,
             from: campaignData.from || "noreply@supersend.app",
+            attachments: scheduledAttachments,
           });
           
           // Log results
