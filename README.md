@@ -138,8 +138,8 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 
 ### Storage Bucket
 
-- **Bucket**: `gs://supervideo-stg`
-- **Frontend**: `getStorage(app, "gs://supervideo-stg")` em `src/lib/firebase.ts`
+- **Bucket**: `gs://supersend-stg`
+- **Frontend**: `getStorage(app, "gs://supersend-stg")` em `src/lib/firebase.ts`
 
 ### Functions Codebase
 
@@ -342,7 +342,7 @@ Após o deploy, ativar no Firebase Console:
 | **URL** | https://supersendapp.web.app |
 | **Projeto Firebase** | `studio-9597335049-1a59a` |
 | **Firestore Database** | `supersend-bd` (nomeado) |
-| **Storage Bucket** | `gs://supervideo-stg` |
+| **Storage Bucket** | `gs://supersend-stg` |
 | **Functions Codebase** | `supersend` |
 | **Hosting Target** | `supersend` → site `supersendapp` |
 | **Mailgun Domain** | `mg.promocaohp.com.br` |

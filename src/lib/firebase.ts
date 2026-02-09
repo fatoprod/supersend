@@ -18,7 +18,7 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, "supersend-bd");
 export const functions = getFunctions(app);
-export const storage = getStorage(app, "gs://supervideo-stg");
+export const storage = getStorage(app, "gs://supersend-stg");
 
 // Connect to emulators in development
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === "true") {
