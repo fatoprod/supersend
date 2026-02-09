@@ -4,7 +4,7 @@ import { Header } from "../components/layout";
 import { Button, Input } from "../components/ui";
 import { ArrowLeft, Eye, Loader2, Save, Send, FileText, Plus, X, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
 import { useI18n } from "../i18n";
-import { useCampaigns, useCreateCampaign, useUpdateCampaign, useSendCampaign, useTemplates, useToast } from "../hooks";
+import { useCampaigns, useCreateCampaign, useUpdateCampaign, useSendCampaign, useTemplates, useToast, useSettings } from "../hooks";
 import { useContactLists, useContactsInList } from "../hooks/useContactLists";
 import type { Campaign, CampaignFormData, EmailTemplate } from "../types";
 
@@ -12,6 +12,9 @@ import type { Campaign, CampaignFormData, EmailTemplate } from "../types";
 const REQUIRED_VARIABLES = new Set([
   "company", "title", "content", "cta_text", "cta_url", "subject",
 ]);
+
+// Variables managed automatically (not shown in campaign form)
+const EXCLUDED_VARIABLES = new Set(["logo_width"]);
 
 const VARIABLE_LABELS: Record<string, string> = {
   company: "Nome da Empresa",
@@ -64,6 +67,7 @@ export function CampaignEditorPage() {
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
   const sendCampaignMutation = useSendCampaign();
+  const { data: settings } = useSettings();
 
   // Form state
   const [name, setName] = useState("");
@@ -98,10 +102,10 @@ export function CampaignEditorPage() {
     }
   }, [isEditing, campaigns, campaignId, loaded]);
 
-  // Detected variables in raw template
+  // Detected variables in raw template (exclude auto-managed ones)
   const detectedVars = useMemo(() => {
     if (!rawTemplateHtml) return [];
-    return extractVariables(rawTemplateHtml);
+    return extractVariables(rawTemplateHtml).filter(v => !EXCLUDED_VARIABLES.has(v));
   }, [rawTemplateHtml]);
 
   // Validation
@@ -116,9 +120,22 @@ export function CampaignEditorPage() {
     return detectedVars.every((v) => !!templateVariables[v]?.trim());
   }, [detectedVars, templateVariables]);
 
+  // Apply logo width to the first <img> tag (handles both {{logo_width}} and baked-in values)
+  const applyLogoWidth = (htmlContent: string, vars: Record<string, string>) => {
+    const logoWidth = vars.logo_width;
+    if (!logoWidth) return htmlContent;
+    return htmlContent.replace(/<img\b([^>]*)>/i, (_match, attrs) => {
+      let newAttrs = attrs.replace(/\bwidth="[^"]*"/, `width="${logoWidth}"`);
+      newAttrs = newAttrs.replace(/max-width:\s*\d+px/, `max-width: ${logoWidth}px`);
+      return `<img${newAttrs}>`;
+    });
+  };
+
   // Compute final HTML
   const computeHtml = (raw: string, vars: Record<string, string>) => {
-    return cleanUnfilledOptionalVars(replaceVariables(raw, vars));
+    let result = cleanUnfilledOptionalVars(replaceVariables(raw, vars));
+    result = applyLogoWidth(result, vars);
+    return result;
   };
 
   // Handlers
@@ -138,6 +155,10 @@ export function CampaignEditorPage() {
       const defaults: Record<string, string> = {};
       // Use saved default variables from template, or existing values, or empty
       for (const v of vars) defaults[v] = template.defaultVariables?.[v] || templateVariables[v] || "";
+      // Always include logo_width from template defaults even if not a {{variable}}
+      if (template.defaultVariables?.logo_width && !defaults.logo_width) {
+        defaults.logo_width = template.defaultVariables.logo_width;
+      }
       setTemplateVariables(defaults);
       // Apply default variables to HTML and subject
       setHtml(computeHtml(template.html, defaults));
@@ -190,7 +211,13 @@ export function CampaignEditorPage() {
     if (!validate("save")) return;
     setSaving(true);
     const recipients = selectedListId ? activeContacts.map((c) => c.email) : [];
-    const data: CampaignFormData = { name, subject, html, recipients };
+    const fromName = settings?.defaultFromName || "SuperSend";
+    const fromEmail = settings?.defaultFromEmail || "noreply@supersend.app";
+    const data: CampaignFormData = {
+      name, subject, html, recipients,
+      from: `${fromName} <${fromEmail}>`,
+      replyTo: settings?.replyToEmail || undefined,
+    };
 
     try {
       if (isEditing) {
@@ -211,10 +238,16 @@ export function CampaignEditorPage() {
   const handleSaveAndSend = async () => {
     if (!validate("send")) return;
     setSaving(true);
-    const recipients = activeContacts.map((c) => c.email);
-    if (recipients.length === 0) { toast.error("Selecione ao menos um destinatário"); setSaving(false); return; }
+    const data2Recipients = activeContacts.map((c) => c.email);
+    if (data2Recipients.length === 0) { toast.error("Selecione ao menos um destinatário"); setSaving(false); return; }
 
-    const data: CampaignFormData = { name, subject, html, recipients };
+    const fromName = settings?.defaultFromName || "SuperSend";
+    const fromEmail = settings?.defaultFromEmail || "noreply@supersend.app";
+    const data: CampaignFormData = {
+      name, subject, html, recipients: data2Recipients,
+      from: `${fromName} <${fromEmail}>`,
+      replyTo: settings?.replyToEmail || undefined,
+    };
 
     try {
       let id = campaignId;
@@ -246,7 +279,7 @@ export function CampaignEditorPage() {
         subtitle={isEditing ? `Editando: ${name}` : "Configure sua campanha passo a passo"}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
         {/* Left panel — Form */}
         <div className="w-1/2 overflow-y-auto p-6">
           <button
@@ -483,8 +516,8 @@ export function CampaignEditorPage() {
           </div>
         </div>
 
-        {/* Right panel — Live Preview */}
-        <div className="hidden w-1/2 shrink-0 border-l border-border bg-surface-light/30 lg:flex lg:flex-col">
+        {/* Right panel — Live Preview (sticky) */}
+        <div className="hidden w-1/2 shrink-0 border-l border-border bg-surface-light/30 lg:flex lg:flex-col sticky top-0 h-full">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold text-text">Preview ao Vivo</h3>
             {html && (

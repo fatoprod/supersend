@@ -1,6 +1,6 @@
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
-import { Users, Mail, Send, TrendingUp, Loader2 } from "lucide-react";
+import { Users, Send, TrendingUp, MousePointer, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useDashboardStats, useRecentCampaigns } from "../hooks";
 import type { Timestamp } from "firebase/firestore";
@@ -22,19 +22,29 @@ export function DashboardPage() {
       icon: Users,
     },
     {
-      title: t.dashboard.campaignsSent,
-      value: stats?.totalCampaigns ?? 0,
-      icon: Mail,
-    },
-    {
       title: t.dashboard.emailsSent,
       value: stats?.emailsSent ?? 0,
       icon: Send,
     },
     {
+      title: t.dashboard.deliveryRate,
+      value: `${stats?.deliveryRate ?? 0}%`,
+      icon: CheckCircle,
+    },
+    {
       title: t.dashboard.openRate,
       value: `${stats?.openRate ?? 0}%`,
       icon: TrendingUp,
+    },
+    {
+      title: t.dashboard.clickRate,
+      value: `${stats?.clickRate ?? 0}%`,
+      icon: MousePointer,
+    },
+    {
+      title: t.dashboard.bounceRate,
+      value: `${stats?.bounceRate ?? 0}%`,
+      icon: AlertCircle,
     },
   ];
 
@@ -53,7 +63,7 @@ export function DashboardPage() {
       
       <div className="p-6">
         {/* Stats Grid */}
-        <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {statCards.map((stat) => (
             <Card key={stat.title}>
               <CardContent className="p-0">

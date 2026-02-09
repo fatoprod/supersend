@@ -16,7 +16,7 @@ const REQUIRED_VARIABLES = new Set([
 ]);
 
 // Variables to exclude from the form (they are set elsewhere)
-const EXCLUDED_VARIABLES = new Set(["subject"]);
+const EXCLUDED_VARIABLES = new Set(["subject", "logo_width"]);
 
 const VARIABLE_LABELS: Record<string, string> = {
   company: "Nome da Empresa",
@@ -62,7 +62,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
           <!-- Header -->
           <tr>
             <td style="background-color: #6366f1; padding: 32px 40px; text-align: center;">
-              <img src="{{logo_url}}" alt="{{company}}" width="160" height="auto" style="display: block; margin: 0 auto; max-width: 160px; height: auto;" />
+              <img src="{{logo_url}}" alt="{{company}}" width="{{logo_width}}" height="auto" style="display: block; margin: 0 auto; max-width: {{logo_width}}px; height: auto;" />
               <p style="margin: 12px 0 0 0; font-size: 14px; color: #c7d2fe; letter-spacing: 0.5px;">{{company}}</p>
             </td>
           </tr>
@@ -162,6 +162,7 @@ export function TemplateEditorPage() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoWidth, setLogoWidth] = useState(160);
 
   // Form state - use default HTML template for new templates
   const [name, setName] = useState("");
@@ -188,16 +189,36 @@ export function TemplateEditorPage() {
       if (template) {
         setName(template.name);
         setSubject(template.subject);
-        setHtml(template.html);
         setText(template.text || "");
-        // Detect colors used in the template
-        const detectedColors = { ...DEFAULT_COLORS };
-        setColors(detectedColors);
+
+        // Detect and restore colors from saved defaultVariables
+        let templateHtml = template.html;
+        const savedColors = { ...DEFAULT_COLORS };
+        if (template.defaultVariables?._color_primary) {
+          savedColors.primary = template.defaultVariables._color_primary;
+          savedColors.titleText = template.defaultVariables._color_titleText || DEFAULT_COLORS.titleText;
+          savedColors.bodyText = template.defaultVariables._color_bodyText || DEFAULT_COLORS.bodyText;
+          savedColors.background = template.defaultVariables._color_background || DEFAULT_COLORS.background;
+          // Reverse baked colors back to defaults so applyColors works correctly
+          for (const [key, savedColor] of Object.entries(savedColors)) {
+            const defaultColor = DEFAULT_COLORS[key as keyof typeof DEFAULT_COLORS];
+            if (savedColor && defaultColor && savedColor.toLowerCase() !== defaultColor.toLowerCase()) {
+              templateHtml = templateHtml.replaceAll(savedColor, defaultColor);
+            }
+          }
+        }
+        setHtml(templateHtml);
+        setColors(savedColors);
+
         // Initialize preview vars from saved defaults or empty
-        const vars = extractVariables(template.html);
+        const vars = extractVariables(templateHtml);
         const defaults: Record<string, string> = {};
         for (const v of vars) defaults[v] = template.defaultVariables?.[v] || "";
         setPreviewVars(defaults);
+        // Load saved logo width
+        if (template.defaultVariables?.logo_width) {
+          setLogoWidth(parseInt(template.defaultVariables.logo_width, 10) || 160);
+        }
         setLoaded(true);
       }
     }
@@ -228,9 +249,15 @@ export function TemplateEditorPage() {
     // Apply colors
     result = applyColors(result, colors);
     // Replace variables filled for preview
-    result = replaceVariables(result, previewVars);
+    result = replaceVariables(result, { ...previewVars, logo_width: String(logoWidth) });
     // Clean unfilled optional vars
     result = cleanUnfilledOptionalVars(result);
+    // Force logo width on the first <img> tag (handles both {{logo_width}} and baked-in values)
+    result = result.replace(/<img\b([^>]*)>/i, (_match, attrs) => {
+      let newAttrs = attrs.replace(/\bwidth="[^"]*"/, `width="${logoWidth}"`);
+      newAttrs = newAttrs.replace(/max-width:\s*\d+px/, `max-width: ${logoWidth}px`);
+      return `<img${newAttrs}>`;
+    });
     return result;
   };
 
@@ -308,13 +335,20 @@ export function TemplateEditorPage() {
     for (const [key, value] of Object.entries(previewVars)) {
       if (value.trim()) defaultVariables[key] = value.trim();
     }
+    // Always save logo width
+    defaultVariables.logo_width = String(logoWidth);
+    // Save colors so they can be restored when editing
+    defaultVariables._color_primary = colors.primary;
+    defaultVariables._color_titleText = colors.titleText;
+    defaultVariables._color_bodyText = colors.bodyText;
+    defaultVariables._color_background = colors.background;
     
     const data: EmailTemplateFormData = {
       name,
       subject,
       html: getSaveHtml(),
-      text: text || undefined,
-      defaultVariables: Object.keys(defaultVariables).length > 0 ? defaultVariables : undefined,
+      text: text || "",
+      defaultVariables: Object.keys(defaultVariables).length > 0 ? defaultVariables : {},
     };
 
     try {
@@ -340,7 +374,7 @@ export function TemplateEditorPage() {
         subtitle={isEditing ? `Editando: ${name}` : "Configure seu template de email"}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
         {/* Left panel — Form */}
         <div className="w-1/2 overflow-y-auto p-6">
           <button
@@ -572,9 +606,29 @@ export function TemplateEditorPage() {
                                 {LOGO_GUIDELINES.notes}
                               </p>
                             </div>
+                            {/* Logo Width Slider */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-medium text-text-muted">Largura do logo</label>
+                                <span className="text-xs font-semibold text-text">{logoWidth}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={40}
+                                max={400}
+                                step={10}
+                                value={logoWidth}
+                                onChange={(e) => setLogoWidth(Number(e.target.value))}
+                                className="w-full accent-primary"
+                              />
+                              <div className="flex justify-between text-[10px] text-text-muted">
+                                <span>40px</span>
+                                <span>400px</span>
+                              </div>
+                            </div>
                             {previewVars[key] && (
                               <div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-2">
-                                <img src={previewVars[key]} alt="Logo preview" className="h-8 max-w-[80px] object-contain" />
+                                <img src={previewVars[key]} alt="Logo preview" style={{ maxWidth: `${logoWidth}px` }} className="h-auto object-contain" />
                                 <span className="text-xs text-text-muted truncate flex-1">{previewVars[key]}</span>
                               </div>
                             )}
@@ -621,8 +675,8 @@ export function TemplateEditorPage() {
           </div>
         </div>
 
-        {/* Right panel — Live Preview */}
-        <div className="hidden w-1/2 shrink-0 border-l border-border bg-surface-light/30 lg:flex lg:flex-col">
+        {/* Right panel — Live Preview (sticky) */}
+        <div className="hidden w-1/2 shrink-0 border-l border-border bg-surface-light/30 lg:flex lg:flex-col sticky top-0 h-full">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold text-text">Preview ao Vivo</h3>
             {html && (

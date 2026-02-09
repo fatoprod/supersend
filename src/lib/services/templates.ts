@@ -53,6 +53,7 @@ export async function createTemplate(
     html: data.html,
     text: data.text || "",
     variables,
+    defaultVariables: data.defaultVariables || {},
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -66,9 +67,15 @@ export async function updateTemplate(
 ): Promise<void> {
   const docRef = doc(db, "users", userId, "templates", templateId);
   const updateData: Record<string, unknown> = {
-    ...data,
     updatedAt: serverTimestamp(),
   };
+
+  // Only include defined fields (Firestore rejects undefined values)
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      updateData[key] = value;
+    }
+  }
 
   if (data.html) {
     updateData.variables = extractVariables(data.html);

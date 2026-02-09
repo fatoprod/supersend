@@ -1,14 +1,19 @@
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
+import { defineString } from "firebase-functions/params";
 import { sendEmail, sendBulkEmails } from "./email/mailgun";
 import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
+import { verifyWebhookSignature, processWebhookEvent } from "./email/webhooks";
 
 // Initialize Firebase Admin
 admin.initializeApp();
 
 // Export named Firestore database instance
 export const db = getFirestore("supersend-bd");
+
+// Mailgun webhook signing key
+const mailgunWebhookSigningKey = defineString("MAILGUN_WEBHOOK_SIGNING_KEY");
 
 // ============ Auth Functions ============
 
@@ -137,6 +142,7 @@ export const processCampaign = functions.https.onCall(async (data, context) => {
       html: campaignData.html,
       text: campaignData.text,
       from: campaignData.from || "noreply@supersend.app",
+      replyTo: campaignData.replyTo || undefined,
     });
     
     // Log results
@@ -243,3 +249,50 @@ export const processScheduledCampaigns = functions.pubsub
     
     return null;
   });
+
+// ============ Webhook Functions ============
+
+/**
+ * Mailgun webhook endpoint
+ * Receives events: delivered, opened, clicked, bounced, failed, complained, unsubscribed
+ * Configure in Mailgun Dashboard → Webhooks
+ */
+export const mailgunWebhook = functions.https.onRequest(async (req, res) => {
+  // Only accept POST
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  try {
+    const payload = req.body;
+
+    // Verify signature
+    const { timestamp, token, signature } = payload.signature || {};
+    if (!timestamp || !token || !signature) {
+      console.warn("Webhook missing signature fields");
+      res.status(400).send("Missing signature");
+      return;
+    }
+
+    const isValid = verifyWebhookSignature(
+      mailgunWebhookSigningKey.value(),
+      timestamp,
+      token,
+      signature
+    );
+
+    if (!isValid) {
+      console.warn("Webhook signature verification failed");
+      res.status(403).send("Invalid signature");
+      return;
+    }
+
+    // Process the event
+    const result = await processWebhookEvent(payload);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Webhook processing error:", error);
+    res.status(500).send("Internal error");
+  }
+});

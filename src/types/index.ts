@@ -137,10 +137,29 @@ export interface SentEmail {
   status: "sent" | "failed" | "bounced";
   messageId?: string;
   error?: string;
+  // Delivery tracking (from webhooks)
+  delivered?: boolean;
+  deliveredAt?: Timestamp;
+  // Open tracking
   opened?: boolean;
   openedAt?: Timestamp;
+  openCount?: number;
+  // Click tracking
   clicked?: boolean;
   clickedAt?: Timestamp;
+  clickCount?: number;
+  lastClickedUrl?: string;
+  // Bounce tracking
+  bouncedAt?: Timestamp;
+  bounceSeverity?: "permanent" | "temporary";
+  bounceMessage?: string;
+  bounceReason?: string;
+  // Spam complaint
+  complained?: boolean;
+  complainedAt?: Timestamp;
+  // Unsubscribe via Mailgun
+  unsubscribedViaMailgun?: boolean;
+  unsubscribedAt?: Timestamp;
 }
 
 // API response types
@@ -158,4 +177,6 @@ export interface DashboardStats {
   emailsThisMonth: number;
   openRate: number;
   clickRate: number;
+  deliveryRate: number;
+  bounceRate: number;
 }

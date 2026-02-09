@@ -64,9 +64,15 @@ export async function updateCampaign(
 ): Promise<void> {
   const docRef = doc(db, "users", userId, "campaigns", campaignId);
   const updateData: Record<string, unknown> = {
-    ...data,
     updatedAt: serverTimestamp(),
   };
+
+  // Only include defined fields (Firestore rejects undefined)
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      updateData[key] = value;
+    }
+  }
 
   if (data.scheduledAt) {
     updateData.scheduledAt = Timestamp.fromDate(data.scheduledAt);

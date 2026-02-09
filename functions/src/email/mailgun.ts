@@ -15,6 +15,7 @@ interface SendEmailOptions {
   html?: string;
   text?: string;
   from: string;
+  replyTo?: string;
 }
 
 interface SendEmailResult {
@@ -29,6 +30,7 @@ interface BulkEmailOptions {
   html?: string;
   text?: string;
   from: string;
+  replyTo?: string;
 }
 
 interface BulkEmailResult {
@@ -57,6 +59,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       text: options.text,
       html: options.html,
       template: "",
+      ...(options.replyTo ? { "h:Reply-To": options.replyTo } : {}),
     });
 
     return {
@@ -100,6 +103,7 @@ export async function sendBulkEmails(options: BulkEmailOptions): Promise<BulkEma
             text: options.text,
             html: options.html,
             template: "",
+            ...(options.replyTo ? { "h:Reply-To": options.replyTo } : {}),
           });
 
           return {

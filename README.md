@@ -13,11 +13,11 @@ Plataforma de email marketing com painel completo para gestão de contatos, camp
 ## Funcionalidades
 
 - **Autenticação**: Login com email/senha e Google Sign-In, verificação de email com código de 6 dígitos
-- **Dashboard**: Visão geral com métricas reais do Firestore (contatos, campanhas, taxa de abertura, taxa de clique)
+- **Dashboard**: Visão geral com métricas reais do Firestore (contatos, emails enviados, taxa de entrega, abertura, clique e rejeição)
 - **Listas de Contatos**: Organização de contatos em listas separadas, importação CSV (separador ;), download de template CSV
 - **Campanhas**: Criação com seleção de template, escolha de lista de contatos, preenchimento de variáveis, preview ao vivo 50/50 e envio via Mailgun
 - **Templates**: Editor dedicado com color picker (4 cores), editor HTML, variáveis com validação (obrigatórias/opcionais) e preview ao vivo 50/50
-- **Analytics**: Métricas detalhadas de envio, abertura e cliques
+- **Analytics**: Métricas detalhadas de envio, entrega, abertura, cliques, rejeições, spam complaints e descadastros (dados de webhooks Mailgun)
 - **Configurações**: Gerenciamento de conta, email settings, segurança e notificações
 - **Performance**: Lazy loading de páginas, code splitting por vendor (React, Firebase, React Query)
 
@@ -28,9 +28,8 @@ supersend/
 ├── src/                        # Frontend React
 │   ├── components/             # Componentes reutilizáveis
 │   │   ├── auth/               # LoginForm, RegisterForm, VerifyEmailForm
-│   │   ├── dashboard/          # Componentes do dashboard
 │   │   ├── layout/             # Sidebar, Header, DashboardLayout, AuthLayout
-│   │   └── ui/                 # Button, Input, Card
+│   │   └── ui/                 # Button, Input, Card, ConfirmModal
 │   ├── hooks/                  # React Query hooks
 │   │   ├── useAuth.ts          # Autenticação
 │   │   ├── useCampaigns.ts     # CRUD + envio de campanhas
@@ -47,6 +46,7 @@ supersend/
 │   │       ├── campaigns.ts    # CRUD + envio (httpsCallable)
 │   │       ├── contactLists.ts # Listas de contatos + contatos por lista
 │   │       ├── settings.ts     # Configurações do usuário
+│   │       ├── storage.ts      # Upload/delete de logos (Firebase Storage)
 │   │       └── templates.ts    # CRUD + extração de variáveis
 │   ├── pages/                  # Páginas da aplicação
 │   │   ├── DashboardPage.tsx   # Métricas reais + campanhas recentes
@@ -80,10 +80,10 @@ supersend/
 | `/contacts/:listId` | ListContactsPage | Contatos de uma lista específica |
 | `/campaigns` | CampaignsPage | Lista de campanhas |
 | `/campaigns/new` | CampaignEditorPage | Criar nova campanha |
-| `/campaigns/:id/edit` | CampaignEditorPage | Editar campanha existente |
+| `/campaigns/:campaignId/edit` | CampaignEditorPage | Editar campanha existente |
 | `/templates` | TemplatesPage | Lista de templates |
 | `/templates/new` | TemplateEditorPage | Criar novo template |
-| `/templates/:id/edit` | TemplateEditorPage | Editar template existente |
+| `/templates/:templateId/edit` | TemplateEditorPage | Editar template existente |
 | `/analytics` | AnalyticsPage | Métricas detalhadas |
 | `/settings` | SettingsPage | Configurações |
 | `/login` | LoginPage | Login |
@@ -104,9 +104,9 @@ supersend/
 O template CSV usa **ponto e vírgula (;)** como separador para compatibilidade com Excel brasileiro:
 
 ```csv
-email;name;tags
-joao@email.com;João Silva;cliente,vip
-maria@email.com;Maria Santos;lead
+email;firstName;lastName;company;tags
+joao@email.com;João;Silva;Empresa X;cliente,vip
+maria@email.com;Maria;Santos;;lead
 ```
 
 ### Variáveis do Template
@@ -165,6 +165,37 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 | `sendSingleEmail` | Callable | Envia email individual via Mailgun |
 | `processCampaign` | Callable | Processa e envia campanha para lista de contatos |
 | `processScheduledCampaigns` | Scheduled | Verifica e envia campanhas agendadas (a cada 5 min) |
+| `mailgunWebhook` | HTTP | Recebe webhooks do Mailgun (opens, clicks, bounces, etc.) |
+
+### Mailgun Webhook Setup
+
+O webhook `mailgunWebhook` recebe eventos assíncronos do Mailgun e atualiza os documentos `sentEmails` no Firestore. Eventos suportados:
+
+| Evento | Ação |
+|--------|------|
+| `delivered` | Marca email como entregue |
+| `opened` | Marca como aberto + conta aberturas |
+| `clicked` | Marca como clicado + conta cliques + salva URL |
+| `bounced`/`failed` | Marca status como "bounced" + marca contato como bounced (se permanente) |
+| `complained` | Marca como spam complaint |
+| `unsubscribed` | Marca contato como unsubscribed |
+
+**Configuração:**
+
+1. Definir o signing key nas functions:
+```bash
+firebase functions:secrets:set MAILGUN_WEBHOOK_SIGNING_KEY --project your_project_id
+```
+O signing key está no Mailgun Dashboard → Settings → API Keys → HTTP Webhook Signing Key.
+
+2. Configurar webhooks no Mailgun Dashboard → Sending → Webhooks:
+   - URL: `https://us-central1-<PROJECT_ID>.cloudfunctions.net/mailgunWebhook`
+   - Eventos: Delivered, Opened, Clicked, Bounced/Failed, Complained, Unsubscribed
+
+3. Ativar tracking no Mailgun Dashboard → Sending → Domain Settings → Tracking:
+   - Opens tracking: **ON**
+   - Clicks tracking: **ON**
+   - Unsubscribes tracking: **ON**
 
 ## Firestore Collections
 
@@ -175,7 +206,7 @@ users/{userId}
 │       └── contacts/   # Contatos pertencentes à lista
 ├── campaigns/          # Campanhas de email
 ├── templates/          # Templates de email
-└── sentEmails/         # Log de emails enviados (status, messageId, opened, clicked)
+└── sentEmails/         # Log de emails enviados (status, messageId, delivered, opened, clicked, bounced, complained)
 ```
 
 ### Estrutura de Listas de Contatos
@@ -193,10 +224,15 @@ users/{userId}
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `email` | string | Email do contato (obrigatório) |
-| `name` | string? | Nome do contato |
-| `tags` | string[]? | Tags para segmentação |
+| `firstName` | string | Nome do contato |
+| `lastName` | string | Sobrenome do contato |
+| `company` | string | Empresa do contato |
+| `tags` | string[] | Tags para segmentação |
+| `customFields` | Record<string, string> | Campos personalizados |
 | `unsubscribed` | boolean | Se o contato cancelou inscrição |
+| `bounced` | boolean | Se o email retornou erro |
 | `createdAt` | Timestamp | Data de criação |
+| `updatedAt` | Timestamp | Última atualização |
 
 ## Setup Local
 

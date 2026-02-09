@@ -1,6 +1,6 @@
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
-import { Mail, Eye, MousePointer, UserMinus, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Eye, MousePointer, UserMinus, AlertCircle, CheckCircle, ShieldAlert, Loader2 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useAnalyticsData } from "../hooks";
 
@@ -22,6 +22,9 @@ export function AnalyticsPage() {
   const data = analytics || {
     emailsSent: 0,
     emailsSentChange: 0,
+    delivered: 0,
+    deliveryRate: 0,
+    deliveryRateChange: 0,
     openRate: 0,
     openRateChange: 0,
     clickRate: 0,
@@ -30,6 +33,8 @@ export function AnalyticsPage() {
     unsubscribeRateChange: 0,
     bounceRate: 0,
     bounceRateChange: 0,
+    complainedRate: 0,
+    complainedRateChange: 0,
     topCampaigns: [],
   };
 
@@ -42,7 +47,7 @@ export function AnalyticsPage() {
 
       <div className="p-6">
         {/* Overview Stats */}
-        <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <Card>
             <CardContent className="p-0">
               <div className="flex items-center gap-3">
@@ -53,6 +58,22 @@ export function AnalyticsPage() {
                   <p className="text-sm text-text-muted">{t.dashboard.emailsSent}</p>
                   <p className="text-xl font-bold text-text">
                     {data.emailsSent.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-success/10 p-2">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm text-text-muted">{t.analytics.deliveryRate}</p>
+                  <p className="text-xl font-bold text-text">
+                    {data.deliveryRate}%
                   </p>
                 </div>
               </div>
@@ -95,12 +116,28 @@ export function AnalyticsPage() {
             <CardContent className="p-0">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-error/10 p-2">
-                  <UserMinus className="h-5 w-5 text-error" />
+                  <AlertCircle className="h-5 w-5 text-error" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">{t.analytics.unsubscribeRate}</p>
+                  <p className="text-sm text-text-muted">{t.analytics.bounceRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {data.unsubscribeRate}%
+                    {data.bounceRate}%
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-warning/10 p-2">
+                  <ShieldAlert className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-sm text-text-muted">{t.analytics.complainedRate}</p>
+                  <p className="text-xl font-bold text-text">
+                    {data.complainedRate}%
                   </p>
                 </div>
               </div>
@@ -111,12 +148,12 @@ export function AnalyticsPage() {
             <CardContent className="p-0">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-surface-light p-2">
-                  <AlertCircle className="h-5 w-5 text-text-muted" />
+                  <UserMinus className="h-5 w-5 text-text-muted" />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted">{t.analytics.bounceRate}</p>
+                  <p className="text-sm text-text-muted">{t.analytics.unsubscribeRate}</p>
                   <p className="text-xl font-bold text-text">
-                    {data.bounceRate}%
+                    {data.unsubscribeRate}%
                   </p>
                 </div>
               </div>
@@ -155,6 +192,7 @@ export function AnalyticsPage() {
                         <th className="pb-3 font-medium text-right">{t.dashboard.sent}</th>
                         <th className="pb-3 font-medium text-right">{t.analytics.openPercent}</th>
                         <th className="pb-3 font-medium text-right">{t.analytics.clickPercent}</th>
+                        <th className="pb-3 font-medium text-right">{t.analytics.bouncePercent}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -174,6 +212,9 @@ export function AnalyticsPage() {
                           </td>
                           <td className="py-3 text-right text-text-muted">
                             {campaign.clickRate}%
+                          </td>
+                          <td className="py-3 text-right text-text-muted">
+                            {campaign.bounceRate}%
                           </td>
                         </tr>
                       ))}

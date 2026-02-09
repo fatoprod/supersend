@@ -11,11 +11,14 @@ import { db } from "../firebase";
 import type { DashboardStats, Campaign, SentEmail } from "../../types";
 
 export async function getDashboardStats(userId: string): Promise<DashboardStats> {
-  // Get total contacts count
-  const contactsSnapshot = await getDocs(
-    collection(db, "users", userId, "contacts")
+  // Get total contacts count from contactLists
+  const listsSnapshot = await getDocs(
+    collection(db, "users", userId, "contactLists")
   );
-  const totalContacts = contactsSnapshot.size;
+  let totalContacts = 0;
+  listsSnapshot.docs.forEach((doc) => {
+    totalContacts += doc.data().contactCount || 0;
+  });
 
   // Get campaigns
   const campaignsSnapshot = await getDocs(
@@ -42,17 +45,23 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
   const thisMonthSnapshot = await getDocs(thisMonthQuery);
   const emailsThisMonth = thisMonthSnapshot.size;
 
-  // Calculate open/click rates from sent emails
+  // Calculate rates from sent emails (using webhook data)
   let opened = 0;
   let clicked = 0;
+  let delivered = 0;
+  let bounced = 0;
   sentEmailsSnapshot.docs.forEach((doc) => {
     const data = doc.data();
     if (data.opened) opened++;
     if (data.clicked) clicked++;
+    if (data.delivered) delivered++;
+    if (data.status === "bounced") bounced++;
   });
 
   const openRate = emailsSent > 0 ? (opened / emailsSent) * 100 : 0;
   const clickRate = emailsSent > 0 ? (clicked / emailsSent) * 100 : 0;
+  const deliveryRate = emailsSent > 0 ? (delivered / emailsSent) * 100 : 0;
+  const bounceRate = emailsSent > 0 ? (bounced / emailsSent) * 100 : 0;
 
   return {
     totalContacts,
@@ -61,6 +70,8 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
     emailsThisMonth,
     openRate: Math.round(openRate * 10) / 10,
     clickRate: Math.round(clickRate * 10) / 10,
+    deliveryRate: Math.round(deliveryRate * 10) / 10,
+    bounceRate: Math.round(bounceRate * 10) / 10,
   };
 }
 
@@ -80,6 +91,9 @@ export async function getRecentCampaigns(userId: string): Promise<Campaign[]> {
 export interface AnalyticsData {
   emailsSent: number;
   emailsSentChange: number;
+  delivered: number;
+  deliveryRate: number;
+  deliveryRateChange: number;
   openRate: number;
   openRateChange: number;
   clickRate: number;
@@ -88,11 +102,14 @@ export interface AnalyticsData {
   unsubscribeRateChange: number;
   bounceRate: number;
   bounceRateChange: number;
+  complainedRate: number;
+  complainedRateChange: number;
   topCampaigns: Array<{
     name: string;
     sent: number;
     openRate: number;
     clickRate: number;
+    bounceRate: number;
   }>;
 }
 
@@ -110,19 +127,30 @@ export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
   const totalOpened = sentEmails.filter((e) => e.opened).length;
   const totalClicked = sentEmails.filter((e) => e.clicked).length;
   const totalBounced = sentEmails.filter((e) => e.status === "bounced").length;
+  const totalDelivered = sentEmails.filter((e) => e.delivered).length;
+  const totalComplained = sentEmails.filter((e) => e.complained).length;
 
-  // Get contacts for unsubscribe rate
-  const contactsSnapshot = await getDocs(
-    collection(db, "users", userId, "contacts")
+  // Get contacts for unsubscribe rate (iterate all contactLists)
+  const listsSnapshot = await getDocs(
+    collection(db, "users", userId, "contactLists")
   );
-  const totalContacts = contactsSnapshot.size;
-  const unsubscribed = contactsSnapshot.docs.filter(
-    (doc) => doc.data().unsubscribed
-  ).length;
+  let totalContacts = 0;
+  let unsubscribed = 0;
+  for (const listDoc of listsSnapshot.docs) {
+    const contactsSnapshot = await getDocs(
+      collection(db, "users", userId, "contactLists", listDoc.id, "contacts")
+    );
+    totalContacts += contactsSnapshot.size;
+    contactsSnapshot.docs.forEach((doc) => {
+      if (doc.data().unsubscribed) unsubscribed++;
+    });
+  }
 
   const openRate = totalSent > 0 ? (totalOpened / totalSent) * 100 : 0;
   const clickRate = totalSent > 0 ? (totalClicked / totalSent) * 100 : 0;
   const bounceRate = totalSent > 0 ? (totalBounced / totalSent) * 100 : 0;
+  const deliveryRate = totalSent > 0 ? (totalDelivered / totalSent) * 100 : 0;
+  const complainedRate = totalSent > 0 ? (totalComplained / totalSent) * 100 : 0;
   const unsubscribeRate =
     totalContacts > 0 ? (unsubscribed / totalContacts) * 100 : 0;
 
@@ -146,12 +174,17 @@ export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
         stats.sent > 0 ? Math.round(((stats.opened || 0) / stats.sent) * 1000) / 10 : 0,
       clickRate:
         stats.sent > 0 ? Math.round(((stats.clicked || 0) / stats.sent) * 1000) / 10 : 0,
+      bounceRate:
+        stats.sent > 0 ? Math.round(((stats.bounced || 0) / stats.sent) * 1000) / 10 : 0,
     };
   });
 
   return {
     emailsSent: totalSent,
     emailsSentChange: 0, // Would need historical data to calculate
+    delivered: totalDelivered,
+    deliveryRate: Math.round(deliveryRate * 10) / 10,
+    deliveryRateChange: 0,
     openRate: Math.round(openRate * 10) / 10,
     openRateChange: 0,
     clickRate: Math.round(clickRate * 10) / 10,
@@ -160,6 +193,8 @@ export async function getAnalyticsData(userId: string): Promise<AnalyticsData> {
     unsubscribeRateChange: 0,
     bounceRate: Math.round(bounceRate * 10) / 10,
     bounceRateChange: 0,
+    complainedRate: Math.round(complainedRate * 10) / 10,
+    complainedRateChange: 0,
     topCampaigns,
   };
 }

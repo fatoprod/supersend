@@ -85,6 +85,9 @@ export interface Translations {
     campaignsSent: string;
     emailsSent: string;
     openRate: string;
+    clickRate: string;
+    deliveryRate: string;
+    bounceRate: string;
     recentCampaigns: string;
     campaign: string;
     status: string;
@@ -146,6 +149,9 @@ export interface Translations {
     title: string;
     subtitle: string;
     clickRate: string;
+    deliveryRate: string;
+    deliveredEmails: string;
+    complainedRate: string;
     unsubscribeRate: string;
     bounceRate: string;
     performanceOverTime: string;
@@ -153,6 +159,7 @@ export interface Translations {
     topCampaigns: string;
     openPercent: string;
     clickPercent: string;
+    bouncePercent: string;
   };
 
   // Settings

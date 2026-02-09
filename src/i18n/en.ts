@@ -81,6 +81,9 @@ export const en: Translations = {
     campaignsSent: "Campaigns Sent",
     emailsSent: "Emails Sent",
     openRate: "Open Rate",
+    clickRate: "Click Rate",
+    deliveryRate: "Delivery Rate",
+    bounceRate: "Bounce Rate",
     recentCampaigns: "Recent Campaigns",
     campaign: "Campaign",
     status: "Status",
@@ -138,6 +141,9 @@ export const en: Translations = {
     title: "Analytics",
     subtitle: "Track your email performance",
     clickRate: "Click Rate",
+    deliveryRate: "Delivery Rate",
+    deliveredEmails: "Delivered Emails",
+    complainedRate: "Spam Complaints",
     unsubscribeRate: "Unsubscribe Rate",
     bounceRate: "Bounce Rate",
     performanceOverTime: "Email Performance Over Time",
@@ -145,6 +151,7 @@ export const en: Translations = {
     topCampaigns: "Top Performing Campaigns",
     openPercent: "Open %",
     clickPercent: "Click %",
+    bouncePercent: "Bounce %",
   },
 
   settings: {

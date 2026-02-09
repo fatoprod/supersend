@@ -81,6 +81,9 @@ export const ptBR: Translations = {
     campaignsSent: "Campanhas Enviadas",
     emailsSent: "Emails Enviados",
     openRate: "Taxa de Abertura",
+    clickRate: "Taxa de Clique",
+    deliveryRate: "Taxa de Entrega",
+    bounceRate: "Taxa de Rejeição",
     recentCampaigns: "Campanhas Recentes",
     campaign: "Campanha",
     status: "Status",
@@ -138,6 +141,9 @@ export const ptBR: Translations = {
     title: "Análises",
     subtitle: "Acompanhe o desempenho dos seus emails",
     clickRate: "Taxa de Clique",
+    deliveryRate: "Taxa de Entrega",
+    deliveredEmails: "Emails Entregues",
+    complainedRate: "Spam Complaints",
     unsubscribeRate: "Taxa de Descadastro",
     bounceRate: "Taxa de Rejeição",
     performanceOverTime: "Desempenho de Emails ao Longo do Tempo",
@@ -145,6 +151,7 @@ export const ptBR: Translations = {
     topCampaigns: "Campanhas com Melhor Desempenho",
     openPercent: "Abertura %",
     clickPercent: "Clique %",
+    bouncePercent: "Rejeição %",
   },
 
   settings: {
