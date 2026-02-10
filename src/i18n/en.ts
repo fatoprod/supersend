@@ -67,11 +67,6 @@ export const en: Translations = {
     tooManyAttempts: "Too many failed attempts. Please wait before trying again.",
     lockedOut: "Account temporarily locked. Try again in {seconds}s",
     attemptsRemaining: "{count} attempt(s) remaining before temporary lock",
-    resetPassword: "Reset password",
-    resetPasswordDescription: "Enter your email address and we'll send you a link to reset your password.",
-    sendResetLink: "Send reset link",
-    resetEmailSent: "Reset email sent!",
-    resetEmailDescription: "If an account exists with this email, you'll receive a password reset link shortly. Check your inbox and spam folder.",
     backToLogin: "Back to login",
   },
 

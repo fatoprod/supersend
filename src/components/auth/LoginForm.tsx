@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { useAuth, useToast } from "../../hooks";
 import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui";
@@ -147,7 +147,7 @@ export function LoginForm() {
             </p>
           )}
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -157,12 +157,6 @@ export function LoginForm() {
               />
               <span className="text-sm text-text-muted">{t.auth.rememberMe}</span>
             </label>
-            <Link
-              to="/forgot-password"
-              className="text-sm text-primary hover:underline"
-            >
-              {t.auth.forgotPassword}
-            </Link>
           </div>
           
           <Button type="submit" className="w-full" isLoading={isLoading} disabled={isLockedOut}>

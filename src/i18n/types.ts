@@ -69,11 +69,6 @@ export interface Translations {
     tooManyAttempts: string;
     lockedOut: string;
     attemptsRemaining: string;
-    resetPassword: string;
-    resetPasswordDescription: string;
-    sendResetLink: string;
-    resetEmailSent: string;
-    resetEmailDescription: string;
     backToLogin: string;
   };
 

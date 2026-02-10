@@ -67,11 +67,6 @@ export const ptBR: Translations = {
     tooManyAttempts: "Muitas tentativas falhas. Aguarde antes de tentar novamente.",
     lockedOut: "Conta temporariamente bloqueada. Tente novamente em {seconds}s",
     attemptsRemaining: "{count} tentativa(s) restante(s) antes do bloqueio temporário",
-    resetPassword: "Redefinir senha",
-    resetPasswordDescription: "Digite seu email e enviaremos um link para redefinir sua senha.",
-    sendResetLink: "Enviar link de redefinição",
-    resetEmailSent: "Email de redefinição enviado!",
-    resetEmailDescription: "Se uma conta existir com este email, você receberá um link de redefinição em breve. Verifique sua caixa de entrada e spam.",
     backToLogin: "Voltar ao login",
   },
 

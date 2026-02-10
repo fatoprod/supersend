@@ -18,7 +18,6 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ defa
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage").then(m => ({ default: m.RegisterPage })));
 const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage").then(m => ({ default: m.VerifyEmailPage })));
-const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage").then(m => ({ default: m.ForgotPasswordPage })));
 
 // Loading fallback component
 function PageLoader() {
@@ -63,7 +62,6 @@ export default function App() {
             <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPage /></Suspense>} />
             <Route path="/register" element={<Suspense fallback={<PageLoader />}><RegisterPage /></Suspense>} />
             <Route path="/verify-email" element={<Suspense fallback={<PageLoader />}><VerifyEmailPage /></Suspense>} />
-            <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPasswordPage /></Suspense>} />
           </Route>
 
           {/* Dashboard Routes */}
