@@ -65,6 +65,16 @@ export interface Translations {
     didntReceiveCode: string;
     resend: string;
     signOut: string;
+    invalidCredentials: string;
+    tooManyAttempts: string;
+    lockedOut: string;
+    attemptsRemaining: string;
+    resetPassword: string;
+    resetPasswordDescription: string;
+    sendResetLink: string;
+    resetEmailSent: string;
+    resetEmailDescription: string;
+    backToLogin: string;
   };
 
   // Navigation
