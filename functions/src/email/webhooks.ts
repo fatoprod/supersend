@@ -7,6 +7,7 @@ import * as admin from "firebase-admin";
  * https://documentation.mailgun.com/docs/mailgun/user-manual/tracking-messages/
  */
 type MailgunEventType =
+  | "accepted"
   | "delivered"
   | "opened"
   | "clicked"
@@ -75,6 +76,13 @@ export async function processWebhookEvent(
   const event = eventData.event;
   const messageId = eventData.message?.headers?.["message-id"];
   const recipient = eventData.recipient;
+
+  // "accepted" is just Mailgun confirming receipt of the message from us — we
+  // already track the "sent" state when we call the API, so we ignore it here
+  // (still return processed:true so Mailgun doesn't retry).
+  if (event === "accepted") {
+    return { processed: true, event, messageId: messageId || "" };
+  }
 
   if (!messageId) {
     console.warn("Webhook event missing message-id:", event);
