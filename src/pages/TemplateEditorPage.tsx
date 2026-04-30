@@ -129,6 +129,16 @@ function applyColors(html: string, colorMap: Record<string, string>): string {
   return result;
 }
 
+type CornerStyle = "rounded" | "square";
+
+/** Strip border-radius declarations and flatten VML rounded button when "square" is selected. */
+function applyCornerStyle(html: string, style: CornerStyle): string {
+  if (style === "rounded") return html;
+  return html
+    .replace(/border-radius\s*:\s*[^;"']+;?/gi, "")
+    .replace(/arcsize\s*=\s*"[^"]*"/gi, 'arcsize="0%"');
+}
+
 export function TemplateEditorPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -143,6 +153,7 @@ export function TemplateEditorPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoWidth, setLogoWidth] = useState(160);
+  const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
 
   // Form state - use default HTML template for new templates
   const [name, setName] = useState("");
@@ -199,6 +210,13 @@ export function TemplateEditorPage() {
         if (template.defaultVariables?.logo_width) {
           setLogoWidth(parseInt(template.defaultVariables.logo_width, 10) || 160);
         }
+        // Load saved corner style (default: detect from HTML — has border-radius => rounded)
+        const savedCorner = template.defaultVariables?._corner_style;
+        if (savedCorner === "square" || savedCorner === "rounded") {
+          setCornerStyle(savedCorner);
+        } else {
+          setCornerStyle(/border-radius\s*:/i.test(template.html) ? "rounded" : "square");
+        }
         setLoaded(true);
       }
     }
@@ -228,6 +246,8 @@ export function TemplateEditorPage() {
     let result = html;
     // Apply colors
     result = applyColors(result, colors);
+    // Apply corner style (strip border-radius if "square")
+    result = applyCornerStyle(result, cornerStyle);
     // Replace variables filled for preview
     result = replaceVariables(result, { ...previewVars, logo_width: String(logoWidth) });
     // Clean unfilled optional vars
@@ -273,7 +293,7 @@ export function TemplateEditorPage() {
 
   // When saving, persist the HTML with colors baked in (variables remain as {{...}})
   const getSaveHtml = () => {
-    return applyColors(html, colors);
+    return applyCornerStyle(applyColors(html, colors), cornerStyle);
   };
 
   // Generate plain text from HTML
@@ -322,6 +342,7 @@ export function TemplateEditorPage() {
     defaultVariables._color_titleText = colors.titleText;
     defaultVariables._color_bodyText = colors.bodyText;
     defaultVariables._color_background = colors.background;
+    defaultVariables._corner_style = cornerStyle;
     
     const data: EmailTemplateFormData = {
       name,
@@ -441,6 +462,37 @@ export function TemplateEditorPage() {
                     </code>
                   </div>
                 ))}
+              </div>
+            </section>
+
+            {/* Section 2.5: Corner style */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text">Estilo dos cantos</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCornerStyle("rounded")}
+                  className={`rounded-lg border p-3 text-sm font-medium transition ${
+                    cornerStyle === "rounded"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-surface text-text-muted hover:border-primary/50"
+                  }`}
+                >
+                  Arredondado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCornerStyle("square")}
+                  className={`border p-3 text-sm font-medium transition ${
+                    cornerStyle === "square"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-surface text-text-muted hover:border-primary/50"
+                  }`}
+                >
+                  Reto
+                </button>
               </div>
             </section>
 

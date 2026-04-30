@@ -24,6 +24,8 @@ interface ColorOverrides {
   background: string;
 }
 
+type CornerStyle = "rounded" | "square";
+
 const COLOR_LABELS: Record<keyof ColorOverrides, string> = {
   primary: "Primária",
   titleText: "Título",
@@ -63,6 +65,17 @@ function applyColorOverrides(
   return result;
 }
 
+/** Apply rounded/square corner style by stripping border-radius declarations
+ *  and adjusting the VML rounded button fallback. */
+function applyCornerStyle(html: string, style: CornerStyle): string {
+  if (style === "rounded") return html;
+  return html
+    // Remove "border-radius: <value>;" within style attributes (with optional spaces)
+    .replace(/border-radius\s*:\s*[^;"']+;?/gi, "")
+    // Flatten VML rounded button corners (Outlook desktop)
+    .replace(/arcsize\s*=\s*"[^"]*"/gi, 'arcsize="0%"');
+}
+
 export function TemplateFromUrlPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -85,6 +98,7 @@ export function TemplateFromUrlPage() {
   const [ctaUrl, setCtaUrl] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [logoUrlOverride, setLogoUrlOverride] = useState("");
+  const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
 
   const [saving, setSaving] = useState(false);
 
@@ -118,6 +132,7 @@ export function TemplateFromUrlPage() {
   const previewHtml = useMemo(() => {
     if (!generatedHtml || !originalColors || !colors || !brand) return "";
     let html = applyColorOverrides(generatedHtml, originalColors, colors);
+    html = applyCornerStyle(html, cornerStyle);
     const vars: Record<string, string> = {
       title: title || "Seu título aqui",
       content: formatContent(content || "Seu conteúdo aqui."),
@@ -146,6 +161,7 @@ export function TemplateFromUrlPage() {
     ctaText,
     ctaUrl,
     companyAddress,
+    cornerStyle,
   ]);
 
   const canSave =
@@ -163,7 +179,10 @@ export function TemplateFromUrlPage() {
     setSaving(true);
     try {
       // Bake user overrides into the HTML, but keep Mustache vars intact
-      const finalHtml = applyColorOverrides(generatedHtml, originalColors, colors);
+      const finalHtml = applyCornerStyle(
+        applyColorOverrides(generatedHtml, originalColors, colors),
+        cornerStyle
+      );
 
       const defaultVariables: Record<string, string> = {
         company: brand.brandName || "",
@@ -320,6 +339,36 @@ export function TemplateFromUrlPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-text">
+                      Estilo dos cantos
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCornerStyle("rounded")}
+                        className={`rounded border px-3 py-2 text-sm font-medium transition ${
+                          cornerStyle === "rounded"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-surface text-text-muted hover:border-primary/50"
+                        }`}
+                      >
+                        Arredondado
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCornerStyle("square")}
+                        className={`border px-3 py-2 text-sm font-medium transition ${
+                          cornerStyle === "square"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-surface text-text-muted hover:border-primary/50"
+                        }`}
+                      >
+                        Reto
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
