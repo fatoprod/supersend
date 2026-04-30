@@ -553,7 +553,7 @@ export const checkMailgunDns = functions.https.onCall(async (data, context) => {
   });
 
   // 3. DKIM — try common Mailgun selectors
-  const dkimSelectors = ["krs", "k1", "mailo", "pic", "smtp", "mta"];
+  const dkimSelectors = ["krs", "k1", "mailo", "pic", "smtp", "mta", "mx", "mg", "s1", "s2"];
   let dkimFound: { selector: string; value: string } | null = null;
   for (const s of dkimSelectors) {
     const r = await getTxt(`${s}._domainkey.${domain}`);
