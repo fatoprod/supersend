@@ -161,7 +161,8 @@ function pickLargestSize(sizes: string | undefined): number {
   return max;
 }
 
-function extractLogo($: cheerio.CheerioAPI, base: URL): string | undefined {
+/** Build a sorted list of logo candidate URLs (highest score first). */
+function extractLogoCandidates($: cheerio.CheerioAPI, base: URL): string[] {
   const candidates: { url: string; score: number }[] = [];
 
   $('meta[property="og:logo"], meta[name="og:logo"]').each((_, el) => {
@@ -169,18 +170,39 @@ function extractLogo($: cheerio.CheerioAPI, base: URL): string | undefined {
     if (u) candidates.push({ url: u, score: 100 });
   });
 
+  // Header <img> matching "logo" by class/id/alt/src — this is what users see on the site
+  $(
+    'header img[class*="logo" i], header img[id*="logo" i], header img[alt*="logo" i], header img[src*="logo" i]'
+  ).each((_, el) => {
+    const u = absolutize($(el).attr("src"), base);
+    if (u) candidates.push({ url: u, score: 95 });
+  });
+
+  // Any <img> with logo signals (class/id/alt/src) — usually the brand mark
+  $(
+    'img[class*="logo" i], img[id*="logo" i], img[alt*="logo" i], img[src*="logo" i]'
+  ).each((_, el) => {
+    const u = absolutize($(el).attr("src"), base);
+    if (u) candidates.push({ url: u, score: 90 });
+  });
+
+  // First image inside the page header (fallback)
+  const headerImg = $("header img").first().attr("src");
+  const headerImgAbs = absolutize(headerImg, base);
+  if (headerImgAbs) candidates.push({ url: headerImgAbs, score: 85 });
+
   $('link[rel*="apple-touch-icon" i]').each((_, el) => {
     const $el = $(el);
     const u = absolutize($el.attr("href"), base);
     if (u) {
       const sz = pickLargestSize($el.attr("sizes"));
-      candidates.push({ url: u, score: 80 + sz });
+      candidates.push({ url: u, score: 70 + Math.min(sz, 20) });
     }
   });
 
   $('meta[property="og:image"], meta[name="twitter:image"]').each((_, el) => {
     const u = absolutize($(el).attr("content"), base);
-    if (u) candidates.push({ url: u, score: 70 });
+    if (u) candidates.push({ url: u, score: 60 });
   });
 
   $('link[rel="icon"], link[rel="shortcut icon"], link[rel="mask-icon"]').each((_, el) => {
@@ -188,28 +210,32 @@ function extractLogo($: cheerio.CheerioAPI, base: URL): string | undefined {
     const u = absolutize($el.attr("href"), base);
     if (u) {
       const sz = pickLargestSize($el.attr("sizes"));
-      candidates.push({ url: u, score: 50 + sz });
+      candidates.push({ url: u, score: 40 + Math.min(sz, 20) });
     }
   });
 
-  // First img inside header (often the logo)
-  const headerImg = $("header img").first().attr("src");
-  const headerImgAbs = absolutize(headerImg, base);
-  if (headerImgAbs) candidates.push({ url: headerImgAbs, score: 60 });
-
-  // First img with class/id mentioning "logo"
-  $('img[class*="logo" i], img[id*="logo" i], img[alt*="logo" i]').each((_, el) => {
-    const u = absolutize($(el).attr("src"), base);
-    if (u) candidates.push({ url: u, score: 75 });
-  });
-
   candidates.sort((a, b) => b.score - a.score);
+  // Dedupe while preserving order
+  const seen = new Set<string>();
+  const result: string[] = [];
   for (const c of candidates) {
-    if (isHttpUrl(c.url)) return c.url;
+    if (!isHttpUrl(c.url)) continue;
+    if (seen.has(c.url)) continue;
+    seen.add(c.url);
+    result.push(c.url);
   }
   // Fallback: /favicon.ico
-  return new URL("/favicon.ico", base).toString();
+  const fav = new URL("/favicon.ico", base).toString();
+  if (!seen.has(fav)) result.push(fav);
+  return result;
 }
+
+function extractLogo($: cheerio.CheerioAPI, base: URL): string | undefined {
+  const list = extractLogoCandidates($, base);
+  return list[0];
+}
+// Silence unused warning — kept for potential reuse.
+void extractLogo;
 
 function extractBrandName($: cheerio.CheerioAPI, base: URL): string | undefined {
   const og = $('meta[property="og:site_name"]').attr("content")?.trim();
@@ -682,21 +708,24 @@ export async function fetchAndExtract(rawUrl: string): Promise<ExtractedBrand> {
   const cssText = inlineCss + "\n" + externalCss;
 
   const brandName = extractBrandName($, url);
-  const logoUrl = extractLogo($, url);
+  const logoCandidates = extractLogoCandidates($, url);
+  const logoUrl = logoCandidates[0];
   const colors = extractColors($, cssText);
   const fontFamily = extractFontFamily($, cssText);
 
-  // Extract dominant color from logo image (gives the *real* brand color)
-  if (logoUrl && isHttpUrl(logoUrl)) {
-    const palette = await extractLogoPalette(logoUrl);
+  // Extract dominant color from logo image (gives the *real* brand color).
+  // Try each candidate in order — node-vibrant skips SVG/ICO so we fall through
+  // to the next raster candidate (typically apple-touch-icon).
+  for (const candidate of logoCandidates.slice(0, 4)) {
+    const palette = await extractLogoPalette(candidate);
     if (palette) {
-      // Prefer logo Vibrant > current CSS primary > theme-color (already in colors.primary)
       const primary = pickPrimary([
         palette.vibrant,
         palette.darkVibrant,
         colors.primary,
       ]);
       if (primary) colors.primary = primary;
+      break;
     }
   }
 
