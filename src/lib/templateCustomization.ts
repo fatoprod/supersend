@@ -292,11 +292,13 @@ export function serializeCustomization(
 
 // ---------- Internal transforms ----------
 
-const FONT_MARKER = /font-family\s*:\s*[^;"']+/gi;
+const FONT_MARKER = /font-family\s*:\s*[^;"]+/gi;
 
 function applyFontFamily(html: string, family: string): string {
-  // Replace every inline font-family declaration. Avoids mangling commas inside the new value.
-  return html.replace(FONT_MARKER, `font-family: ${family.replace(/"/g, "'")}`);
+  // Replace every inline font-family declaration. Use only single quotes in the
+  // replacement so we don't break the surrounding double-quoted style="" attribute.
+  const safe = family.replace(/"/g, "'");
+  return html.replace(FONT_MARKER, `font-family: ${safe}`);
 }
 
 function applyGoogleFontHead(html: string, href?: string): string {
@@ -398,25 +400,54 @@ function applyAlignment(
 }
 
 function applyCtaAlignment(html: string, align: Alignment): string {
-  // Adjust the CTA wrapper <table>'s align attribute and surrounding <td>.
-  // Markers preferred:
   let result = html;
-  const wrapperRe =
-    /(<!-- region:cta -->\s*<table\b[^>]*?)\salign\s*=\s*"[^"]*"([^>]*>)/i;
-  if (wrapperRe.test(result)) {
-    result = result.replace(wrapperRe, `$1 align="${align}"$2`);
-  } else {
+
+  // 1) Set the deprecated `align` attribute on the wrapper <table> (Outlook & some clients).
+  const tableTagRe =
+    /(<!-- region:cta -->\s*<table\b)([^>]*?)(>)/i;
+  result = result.replace(tableTagRe, (_m, open, attrs, close) => {
+    let next = attrs;
+    if (/\salign\s*=\s*"[^"]*"/i.test(next)) {
+      next = next.replace(/\salign\s*=\s*"[^"]*"/i, ` align="${align}"`);
+    } else {
+      next = ` align="${align}"` + next;
+    }
+    return `${open}${next}${close}`;
+  });
+
+  // 2) Update the wrapper <table>'s inline margin so it actually centers/right-aligns
+  // in clients that ignore the `align` attribute (Gmail web, Apple Mail, browsers).
+  const margin =
+    align === "center"
+      ? "8px auto 0 auto"
+      : align === "right"
+      ? "8px 0 0 auto"
+      : "8px 0 0 0";
+  const styleRe =
+    /(<!-- region:cta -->\s*<table\b[^>]*\bstyle\s*=\s*")([^"]*)(")/i;
+  if (styleRe.test(result)) {
+    result = result.replace(styleRe, (_m, p1, styleStr, p3) => {
+      const updated = upsertStyle(styleStr, "margin", margin);
+      return `${p1}${updated}${p3}`;
+    });
+  }
+
+  // 3) Also align the parent <td> via text-align — safer fallback for some clients.
+  // The CTA lives inside the content <td>; we want the CTA aligned but title/body keep
+  // their own text-align (set inline on <h1>/<p>). text-align on the parent affects
+  // inline/inline-block content (the CTA `<a>` is inline-block), which gives consistent
+  // behavior across clients that strip the table align attribute.
+  // We update text-align of the content <td> only when the CTA region is present.
+  if (/<!-- region:cta -->/i.test(result)) {
     result = result.replace(
-      /(<!-- region:cta -->\s*<table\b)([^>]*>)/i,
-      `$1 align="${align}"$2`
+      /(<!-- region:content -->\s*<tr>\s*<td\b[^>]*\bstyle\s*=\s*")([^"]*)(")/i,
+      (_m, p1, styleStr, p3) => {
+        const updated = upsertStyle(styleStr, "text-align", align);
+        return `${p1}${updated}${p3}`;
+      }
     );
   }
-  // Also align the parent <td> (outlook respects align attribute)
-  result = result.replace(
-    /(<!-- region:cta -->\s*<table\b[^>]*>)/i,
-    (m) => m // no-op placeholder; td align handled below if marker present
-  );
-  // For HTML without markers, set inline text-align on the <table> style if present.
+
   return result;
 }
 
