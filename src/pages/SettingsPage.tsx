@@ -514,6 +514,34 @@ export function SettingsPage() {
                           </p>
                         </div>
 
+                        {/* Webhook URL — what to paste in Mailgun's webhook config */}
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <label className="mb-1 block text-sm font-semibold text-amber-900">
+                            URL do webhook (cole esta URL no Mailgun)
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 break-all rounded border border-amber-200 bg-white px-2 py-1.5 font-mono text-xs text-amber-900">
+                              https://us-central1-studio-9597335049-1a59a.cloudfunctions.net/mailgunWebhook
+                            </code>
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  "https://us-central1-studio-9597335049-1a59a.cloudfunctions.net/mailgunWebhook"
+                                );
+                                toast.success("URL copiada", "Cole no Mailgun em Webhooks.");
+                              }}
+                            >
+                              Copiar
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-xs text-amber-800">
+                            No Mailgun, em <strong>Send → Sending → Webhooks</strong>, configure esta URL para
+                            todos os eventos (delivered, opened, clicked, failed, complained, unsubscribed).
+                            Sem isso, as estatísticas de envio (entrega, aberturas, cliques) não aparecerão no SuperSend.
+                          </p>
+                        </div>
+
                         <div className="flex flex-wrap gap-2">
                           <Button onClick={handleSaveMailgun} disabled={mgSaving}>
                             {mgSaving ? (
