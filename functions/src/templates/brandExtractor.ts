@@ -1,6 +1,8 @@
 import * as cheerio from "cheerio";
 import * as dns from "dns/promises";
 import * as net from "net";
+// @ts-ignore - node-vibrant has loose typings on Node entry
+import Vibrant from "node-vibrant";
 
 export interface ExtractedBrand {
   sourceUrl: string;
@@ -566,6 +568,106 @@ function buildSuggestedSubject($: cheerio.CheerioAPI, brandName?: string): strin
   return brandName ? `Novidades de ${brandName}` : "Novidades";
 }
 
+/* ---------- Color helpers (luminance & palette merging) ---------- */
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex.trim());
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+function relativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.5;
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b);
+}
+
+function colorSaturation(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  if (max === 0) return 0;
+  return (max - min) / max;
+}
+
+/** Fetch the logo image and extract its dominant vibrant color via node-vibrant.
+ *  Returns hex strings or null if extraction fails. */
+async function extractLogoPalette(
+  logoUrl: string
+): Promise<{ vibrant?: string; darkVibrant?: string; lightVibrant?: string } | null> {
+  try {
+    const u = new URL(logoUrl);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    await assertPublicHost(u.hostname);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(logoUrl, {
+        signal: ctrl.signal,
+        redirect: "follow",
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (compatible; SuperSendBot/1.0; +https://supersendapp.web.app)",
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) return null;
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    // node-vibrant doesn't handle SVG/ICO well — only proceed for raster formats
+    if (!ct.startsWith("image/") || /svg|x-icon|vnd\.microsoft\.icon/.test(ct)) {
+      return null;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > 4 * 1024 * 1024) return null;
+
+    const palette = await Vibrant.from(buf).getPalette();
+    const out: { vibrant?: string; darkVibrant?: string; lightVibrant?: string } = {};
+    if (palette?.Vibrant?.hex) out.vibrant = palette.Vibrant.hex;
+    if (palette?.DarkVibrant?.hex) out.darkVibrant = palette.DarkVibrant.hex;
+    if (palette?.LightVibrant?.hex) out.lightVibrant = palette.LightVibrant.hex;
+    // fallback ordering: Muted swatches as last resort
+    if (!out.vibrant && palette?.Muted?.hex) out.vibrant = palette.Muted.hex;
+    if (!out.darkVibrant && palette?.DarkMuted?.hex) out.darkVibrant = palette.DarkMuted.hex;
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Pick the most "brand-like" primary: high saturation + readable on white. */
+function pickPrimary(candidates: (string | undefined)[]): string | undefined {
+  let best: string | undefined;
+  let bestScore = -1;
+  for (const c of candidates) {
+    if (!c) continue;
+    const sat = colorSaturation(c);
+    const lum = relativeLuminance(c);
+    // Prefer saturated colors that aren't too light (button bg with white text)
+    if (sat < 0.25) continue;
+    if (lum > 0.78) continue;
+    const score = sat * 1.5 - Math.abs(lum - 0.4); // sweet spot ~0.4 luminance
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best;
+}
+
 export async function fetchAndExtract(rawUrl: string): Promise<ExtractedBrand> {
   const url = normalizeUrl(rawUrl);
   await assertPublicHost(url.hostname);
@@ -583,6 +685,37 @@ export async function fetchAndExtract(rawUrl: string): Promise<ExtractedBrand> {
   const logoUrl = extractLogo($, url);
   const colors = extractColors($, cssText);
   const fontFamily = extractFontFamily($, cssText);
+
+  // Extract dominant color from logo image (gives the *real* brand color)
+  if (logoUrl && isHttpUrl(logoUrl)) {
+    const palette = await extractLogoPalette(logoUrl);
+    if (palette) {
+      // Prefer logo Vibrant > current CSS primary > theme-color (already in colors.primary)
+      const primary = pickPrimary([
+        palette.vibrant,
+        palette.darkVibrant,
+        colors.primary,
+      ]);
+      if (primary) colors.primary = primary;
+    }
+  }
+
+  // Email-readability gating: enforce light background and dark title text
+  // (extracted dark site bg breaks email clients; default to clean light bg)
+  const bgLum = relativeLuminance(colors.background);
+  if (bgLum < 0.85) {
+    colors.background = "#f4f4f7";
+  }
+  const titleLum = relativeLuminance(colors.titleText);
+  if (titleLum > 0.5) {
+    colors.titleText = "#1e1b4b";
+  }
+  // Body should be a readable medium gray — if too light, reset
+  const bodyLum = relativeLuminance(colors.bodyText);
+  if (bodyLum > 0.6 || bodyLum < 0.05) {
+    colors.bodyText = "#4b5563";
+  }
+
   const suggestedSubject = buildSuggestedSubject($, brandName);
   const suggestedTemplateName = brandName
     ? `Template ${brandName}`
