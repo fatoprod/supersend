@@ -436,15 +436,47 @@ export const mailgunWebhook = functions.https.onRequest(async (req, res) => {
       return;
     }
 
+    const cfg = await getMailgunConfig();
     const isValid = verifyWebhookSignature(
-      (await getMailgunConfig()).webhookSigningKey,
+      cfg.webhookSigningKey,
       timestamp,
       token,
       signature
     );
 
     if (!isValid) {
-      console.warn("Webhook signature verification failed");
+      // Fingerprint the stored key (first 4 + last 4 chars) so the user can
+      // compare with the key shown in the Mailgun panel — without exposing
+      // the full secret.
+      const keyFingerprint = fingerprintSecret(cfg.webhookSigningKey);
+      const expected = computeSignature(cfg.webhookSigningKey, timestamp, token);
+      console.warn(
+        `Webhook signature verification failed. ` +
+          `keyFingerprint=${keyFingerprint} ` +
+          `keyLen=${(cfg.webhookSigningKey || "").length} ` +
+          `keySource=${cfg.source} ` +
+          `receivedSig=${signature.slice(0, 12)}... ` +
+          `expectedSig=${expected.slice(0, 12)}...`
+      );
+      // Persist the last failure to Firestore so the Settings UI can show it.
+      try {
+        await db.collection("system").doc("mailgunDiagnostics").set(
+          {
+            lastWebhookFailureAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastWebhookFailure: {
+              keyFingerprint,
+              keyLen: (cfg.webhookSigningKey || "").length,
+              keySource: cfg.source,
+              receivedSignaturePrefix: String(signature).slice(0, 12),
+              expectedSignaturePrefix: expected.slice(0, 12),
+              timestamp: String(timestamp),
+            },
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn("Failed to persist webhook diagnostics:", e);
+      }
       res.status(403).send("Invalid signature");
       return;
     }
@@ -457,6 +489,22 @@ export const mailgunWebhook = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal error");
   }
 });
+
+/** Returns first 4 + last 4 chars of a secret separated by `…`, or "(empty)". */
+function fingerprintSecret(secret: string | undefined): string {
+  if (!secret) return "(empty)";
+  if (secret.length <= 8) return `***(len=${secret.length})`;
+  return `${secret.slice(0, 4)}…${secret.slice(-4)}`;
+}
+
+/** Compute the expected Mailgun HMAC-SHA256 signature for a given key+timestamp+token. */
+function computeSignature(key: string, timestamp: string, token: string): string {
+  const crypto = require("crypto");
+  return crypto
+    .createHmac("sha256", key)
+    .update(timestamp.concat(token))
+    .digest("hex");
+}
 
 // ============ Mailgun Configuration ============
 
@@ -500,6 +548,28 @@ export const updateMailgunSettings = functions.https.onCall(async (data, context
   await ref.set(update, { merge: true });
   invalidateMailgunConfigCache();
   return { success: true };
+});
+
+/** Returns the most recent webhook signature failure diagnostics so Settings can display them. */
+export const getMailgunDiagnostics = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const cfg = await getMailgunConfig();
+  const snap = await db.collection("system").doc("mailgunDiagnostics").get();
+  const diag = (snap.exists ? snap.data() : null) || {};
+  const lastFailureAt = diag.lastWebhookFailureAt;
+  const lastFailureAtIso =
+    lastFailureAt && typeof lastFailureAt.toDate === "function"
+      ? lastFailureAt.toDate().toISOString()
+      : null;
+  return {
+    storedKeyFingerprint: fingerprintSecret(cfg.webhookSigningKey),
+    storedKeyLen: (cfg.webhookSigningKey || "").length,
+    storedKeySource: cfg.source,
+    lastWebhookFailure: diag.lastWebhookFailure || null,
+    lastWebhookFailureAt: lastFailureAtIso,
+  };
 });
 
 interface DnsCheck {

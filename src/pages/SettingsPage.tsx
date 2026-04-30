@@ -8,8 +8,10 @@ import {
   getMailgunSettings,
   updateMailgunSettings,
   checkMailgunDns,
+  getMailgunDiagnostics,
   type MailgunSettings,
   type DnsCheckResponse,
+  type MailgunDiagnostics,
 } from "../lib/services/mailgunSettings";
 
 export function SettingsPage() {
@@ -47,6 +49,8 @@ export function SettingsPage() {
   const [mgWebhookKey, setMgWebhookKey] = useState("");
   const [dnsLoading, setDnsLoading] = useState(false);
   const [dnsResult, setDnsResult] = useState<DnsCheckResponse | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<MailgunDiagnostics | null>(null);
 
   useEffect(() => {
     if (activeTab !== "api" || mgSettings) return;
@@ -170,6 +174,18 @@ export function SettingsPage() {
       toast.error("Erro ao verificar DNS", String((err as Error)?.message || err));
     } finally {
       setDnsLoading(false);
+    }
+  };
+
+  const handleDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const d = await getMailgunDiagnostics();
+      setDiagnostics(d);
+    } catch (err) {
+      toast.error("Erro no diagnóstico", String((err as Error)?.message || err));
+    } finally {
+      setDiagLoading(false);
     }
   };
 
@@ -559,8 +575,51 @@ export function SettingsPage() {
                             )}
                             Verificar DNS
                           </Button>
+                          <Button variant="secondary" onClick={handleDiagnostics} disabled={diagLoading}>
+                            {diagLoading ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Shield className="mr-2 h-4 w-4" />
+                            )}
+                            Diagnóstico do webhook
+                          </Button>
                         </div>
                       </div>
+
+                      {diagnostics && (
+                        <div className="rounded-md border border-border bg-bg-subtle p-4 text-sm">
+                          <div className="mb-2 font-medium text-text">Diagnóstico do webhook signing key</div>
+                          <ul className="space-y-1 text-text-muted">
+                            <li>
+                              Chave armazenada: <code className="font-mono">{diagnostics.storedKeyFingerprint}</code>
+                              {" "}<span className="text-xs">(comprimento: {diagnostics.storedKeyLen}, fonte: {diagnostics.storedKeySource})</span>
+                            </li>
+                            {diagnostics.lastWebhookFailure ? (
+                              <>
+                                <li className="mt-2 font-medium text-amber-700">
+                                  Última falha: {diagnostics.lastWebhookFailureAt
+                                    ? new Date(diagnostics.lastWebhookFailureAt).toLocaleString("pt-BR")
+                                    : "—"}
+                                </li>
+                                <li>
+                                  Chave usada na verificação: <code className="font-mono">{diagnostics.lastWebhookFailure.keyFingerprint}</code>
+                                </li>
+                                <li>
+                                  Assinatura recebida (Mailgun): <code className="font-mono">{diagnostics.lastWebhookFailure.receivedSignaturePrefix}…</code>
+                                </li>
+                                <li>
+                                  Assinatura calculada (SuperSend): <code className="font-mono">{diagnostics.lastWebhookFailure.expectedSignaturePrefix}…</code>
+                                </li>
+                                <li className="mt-2 text-xs text-amber-700">
+                                  Se as duas assinaturas são diferentes, é porque as chaves não batem. Pegue a "HTTP webhook signing key" no Mailgun (Send → Sending → Domain settings → API security) e cole aqui.
+                                </li>
+                              </>
+                            ) : (
+                              <li className="text-emerald-700">Sem falhas registradas. ✅</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
 
                       {dnsResult && (
                         <div className="rounded-md border border-border">

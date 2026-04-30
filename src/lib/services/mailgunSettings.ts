@@ -30,6 +30,21 @@ export interface DnsCheckResponse {
   checks: DnsCheckResult[];
 }
 
+export interface MailgunDiagnostics {
+  storedKeyFingerprint: string;
+  storedKeyLen: number;
+  storedKeySource: "firestore" | "env" | "mixed" | "none";
+  lastWebhookFailure: {
+    keyFingerprint: string;
+    keyLen: number;
+    keySource: string;
+    receivedSignaturePrefix: string;
+    expectedSignaturePrefix: string;
+    timestamp: string;
+  } | null;
+  lastWebhookFailureAt: string | null;
+}
+
 const getCallable = httpsCallable<void, MailgunSettings>(functions, "getMailgunSettings");
 const updateCallable = httpsCallable<UpdateMailgunSettingsInput, { success: boolean }>(
   functions,
@@ -38,6 +53,10 @@ const updateCallable = httpsCallable<UpdateMailgunSettingsInput, { success: bool
 const checkDnsCallable = httpsCallable<{ domain: string }, DnsCheckResponse>(
   functions,
   "checkMailgunDns"
+);
+const getDiagnosticsCallable = httpsCallable<void, MailgunDiagnostics>(
+  functions,
+  "getMailgunDiagnostics"
 );
 
 export async function getMailgunSettings(): Promise<MailgunSettings> {
@@ -53,5 +72,10 @@ export async function updateMailgunSettings(
 
 export async function checkMailgunDns(domain: string): Promise<DnsCheckResponse> {
   const res = await checkDnsCallable({ domain });
+  return res.data;
+}
+
+export async function getMailgunDiagnostics(): Promise<MailgunDiagnostics> {
+  const res = await getDiagnosticsCallable();
   return res.data;
 }
