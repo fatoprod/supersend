@@ -40,6 +40,40 @@ export async function deleteLogo(path: string): Promise<void> {
   await deleteObject(storageRef);
 }
 
+// ============ Template Body Images ============
+
+const TEMPLATE_IMAGE_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+/**
+ * Uploads an image to be embedded inside an email template body.
+ * Stored under `supersend/{userId}/assets/` (publicly readable for email clients).
+ */
+export async function uploadTemplateImage(
+  userId: string,
+  file: File
+): Promise<UploadResult> {
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error(`Formato não suportado. Use: PNG, JPG, GIF, WebP ou SVG`);
+  }
+  if (file.size > TEMPLATE_IMAGE_MAX_SIZE) {
+    throw new Error(`Imagem muito grande. Máximo: 5MB`);
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  const safeBase = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 40) || "image";
+  const fileName = `${safeBase}_${Date.now()}.${ext}`;
+  const path = `supersend/${userId}/assets/${fileName}`;
+
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+
+  return { url, path };
+}
+
 export const LOGO_GUIDELINES = {
   formats: ["PNG", "JPG", "GIF", "WebP", "SVG"],
   maxSize: "2MB",

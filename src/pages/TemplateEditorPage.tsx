@@ -3,11 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "../components/layout";
 import { Button, Input, EmailPreviewModal } from "../components/ui";
 import {
-  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, AlertCircle, CheckCircle2, Upload, Image,
+  ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, AlertCircle, CheckCircle2, Upload, Image, ImagePlus, Link2,
   AlignLeft, AlignCenter, AlignRight, Type,
 } from "lucide-react";
 import { useTemplates, useCreateTemplate, useUpdateTemplate, useToast } from "../hooks";
-import { uploadLogo, LOGO_GUIDELINES } from "../lib/services/storage";
+import { uploadLogo, uploadTemplateImage, LOGO_GUIDELINES } from "../lib/services/storage";
 import { useAuth } from "../hooks";
 import type { EmailTemplate, EmailTemplateFormData } from "../types";
 import {
@@ -189,7 +189,10 @@ export function TemplateEditorPage() {
   const updateTemplate = useUpdateTemplate();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [logoWidth, setLogoWidth] = useState(160);
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
   const [customization, setCustomization] = useState<TemplateCustomization>({
@@ -346,6 +349,73 @@ export function TemplateEditorPage() {
       setUploadingLogo(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  // Insert text at the current cursor position of the HTML textarea
+  const insertIntoHtml = (snippet: string) => {
+    const ta = htmlTextareaRef.current;
+    if (!ta) {
+      setHtml((prev) => prev + snippet);
+      return;
+    }
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    const next = before + snippet + after;
+    setHtml(next);
+    // Update preview vars so any new {{...}} is tracked
+    const vars = extractVariables(next);
+    setPreviewVars((prev) => {
+      const out: Record<string, string> = {};
+      for (const v of vars) out[v] = prev[v] || "";
+      return out;
+    });
+    // Restore cursor right after the inserted snippet
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + snippet.length;
+      try { ta.setSelectionRange(pos, pos); } catch { /* ignore */ }
+    });
+  };
+
+  const buildImgTag = (url: string, alt = "") => {
+    const safeAlt = alt.replace(/"/g, "&quot;");
+    const safeUrl = url.replace(/"/g, "&quot;");
+    return `\n<img src="${safeUrl}" alt="${safeAlt}" style="max-width: 100%; height: auto; display: block; margin: 16px auto; border: 0;" />\n`;
+  };
+
+  // Upload an image and insert <img> at the cursor in the HTML textarea
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingImage(true);
+    try {
+      const result = await uploadTemplateImage(user.uid, file);
+      const altDefault = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
+      insertIntoHtml(buildImgTag(result.url, altDefault));
+      toast.success("Imagem inserida no template!");
+    } catch (error) {
+      toast.error("Erro ao enviar imagem", String(error));
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  // Insert an image by external URL (no upload)
+  const handleInsertImageUrl = () => {
+    const url = window.prompt("Cole a URL da imagem (https://...):");
+    if (!url || !url.trim()) return;
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) {
+      toast.error("URL inválida", "Use uma URL começando com http:// ou https://");
+      return;
+    }
+    const alt = window.prompt("Texto alternativo (alt) — opcional:", "") || "";
+    insertIntoHtml(buildImgTag(trimmed, alt));
+    toast.success("Imagem inserida no template!");
   };
 
   // When saving, persist the HTML with colors baked in (variables remain as {{...}})
@@ -750,8 +820,46 @@ export function TemplateEditorPage() {
 
             {/* Section 3: HTML Content */}
             <section>
-              <h3 className="mb-4 text-base font-semibold text-text">3. Conteúdo HTML</h3>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-text">3. Conteúdo HTML</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-2 disabled:opacity-50"
+                    title="Fazer upload de imagem (máx 5MB)"
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-3.5 w-3.5" />
+                    )}
+                    {uploadingImage ? "Enviando..." : "Inserir imagem (upload)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInsertImageUrl}
+                    className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-text hover:bg-surface-2"
+                    title="Inserir imagem a partir de uma URL externa"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Inserir imagem (URL)
+                  </button>
+                </div>
+              </div>
+              <p className="mb-3 text-xs text-text-muted">
+                Posicione o cursor no HTML onde a imagem deve aparecer e clique em "Inserir imagem". Formatos: PNG, JPG, GIF, WebP, SVG (máx. 5MB).
+              </p>
               <textarea
+                ref={htmlTextareaRef}
                 value={html}
                 onChange={(e) => {
                   setHtml(e.target.value);
