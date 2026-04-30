@@ -19,6 +19,12 @@ import {
 } from "./integrations/superleed";
 import { fetchAndExtract } from "./templates/brandExtractor";
 import { buildHtml } from "./templates/templateBuilder";
+import {
+  getGa4Config,
+  invalidateGa4ConfigCache,
+  fetchGa4CampaignStats,
+  pingGa4,
+} from "./analytics/ga4";
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -733,3 +739,128 @@ function deriveApex(host: string): string {
   if (multiTlds.includes(twoLabel)) return threeLabel;
   return twoLabel;
 }
+
+
+// ============ Google Analytics (GA4) Configuration & Stats ============
+
+/** Get GA4 config (sensitive fields masked) for the Settings UI. */
+export const getGa4Settings = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const cfg = await getGa4Config();
+  let saEmail = "";
+  if (cfg.serviceAccountJson) {
+    try {
+      const parsed = JSON.parse(cfg.serviceAccountJson);
+      saEmail = parsed.client_email || "";
+    } catch {
+      saEmail = "(JSON inválido)";
+    }
+  }
+  return {
+    measurementId: cfg.measurementId || "",
+    propertyId: cfg.propertyId || "",
+    hasServiceAccount: !!cfg.serviceAccountJson,
+    serviceAccountEmail: saEmail,
+    enabled: cfg.enabled,
+  };
+});
+
+/** Update GA4 config in Firestore. Empty/undefined values clear that field. */
+export const updateGa4Settings = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const { measurementId, propertyId, serviceAccountJson, enabled } = (data || {}) as {
+    measurementId?: string;
+    propertyId?: string;
+    serviceAccountJson?: string;
+    enabled?: boolean;
+  };
+
+  const ref = db.collection("system").doc("ga4");
+  const update: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: context.auth.uid,
+  };
+  if (typeof measurementId === "string") update.measurementId = measurementId.trim();
+  if (typeof propertyId === "string") update.propertyId = propertyId.trim();
+  if (typeof serviceAccountJson === "string" && serviceAccountJson.trim()) {
+    // Validate JSON before persisting
+    try {
+      const parsed = JSON.parse(serviceAccountJson);
+      if (!parsed.client_email || !parsed.private_key) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "Service Account JSON faltando client_email ou private_key.",
+        );
+      }
+    } catch (err) {
+      if (err instanceof functions.https.HttpsError) throw err;
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Service Account JSON inválido. Cole o conteúdo completo do arquivo .json.",
+      );
+    }
+    update.serviceAccountJson = serviceAccountJson.trim();
+  }
+  if (typeof enabled === "boolean") update.enabled = enabled;
+
+  await ref.set(update, { merge: true });
+  invalidateGa4ConfigCache();
+  return { success: true };
+});
+
+/** Test GA4 connectivity. Returns sample sessions count or throws with the API error. */
+export const testGa4Connection = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  try {
+    const result = await pingGa4();
+    return { success: true, ...result };
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      err instanceof Error ? err.message : "GA4 ping failed",
+    );
+  }
+});
+
+/** Fetch GA4 stats for a given campaign (filters by sessionCampaignName). */
+export const getGa4CampaignStats = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const { campaignId, startDate, endDate } = (data || {}) as {
+    campaignId?: string;
+    startDate?: string;
+    endDate?: string;
+  };
+  if (!campaignId || typeof campaignId !== "string") {
+    throw new functions.https.HttpsError("invalid-argument", "campaignId é obrigatório");
+  }
+  // Verify the campaign belongs to the caller before querying GA4.
+  const campaignSnap = await db
+    .collection("users")
+    .doc(context.auth.uid)
+    .collection("campaigns")
+    .doc(campaignId)
+    .get();
+  if (!campaignSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Campanha não encontrada");
+  }
+  try {
+    const stats = await fetchGa4CampaignStats(campaignId, {
+      startDate: startDate || "30daysAgo",
+      endDate: endDate || "today",
+    });
+    return stats;
+  } catch (err) {
+    throw new functions.https.HttpsError(
+      "internal",
+      err instanceof Error ? err.message : "GA4 query failed",
+    );
+  }
+});

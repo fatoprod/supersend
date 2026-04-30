@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Header } from "../components/layout";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
 import { useAuth, useToast, useSettings, useUpdateSettings, useChangePassword } from "../hooks";
-import { Save, User, Mail, Key, Bell, Shield, Globe, Loader2, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from "lucide-react";
+import { Save, User, Mail, Key, Bell, Shield, Globe, Loader2, CheckCircle2, AlertTriangle, XCircle, RefreshCw, BarChart3 } from "lucide-react";
 import { useI18n } from "../i18n";
 import {
   getMailgunSettings,
@@ -13,6 +13,12 @@ import {
   type DnsCheckResponse,
   type MailgunDiagnostics,
 } from "../lib/services/mailgunSettings";
+import {
+  getGa4Settings,
+  updateGa4Settings,
+  testGa4Connection,
+  type Ga4Settings,
+} from "../lib/services/ga4Settings";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -52,6 +58,17 @@ export function SettingsPage() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<MailgunDiagnostics | null>(null);
 
+  // GA4 config state
+  const [gaLoading, setGaLoading] = useState(false);
+  const [gaSaving, setGaSaving] = useState(false);
+  const [gaTesting, setGaTesting] = useState(false);
+  const [gaSettings, setGaSettings] = useState<Ga4Settings | null>(null);
+  const [gaMeasurementId, setGaMeasurementId] = useState("");
+  const [gaPropertyId, setGaPropertyId] = useState("");
+  const [gaSaJson, setGaSaJson] = useState("");
+  const [gaEnabled, setGaEnabled] = useState(false);
+  const [gaTestResult, setGaTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   useEffect(() => {
     if (activeTab !== "api" || mgSettings) return;
     setMgLoading(true);
@@ -63,6 +80,20 @@ export function SettingsPage() {
       .catch((err) => toast.error("Mailgun", String(err?.message || err)))
       .finally(() => setMgLoading(false));
   }, [activeTab, mgSettings, toast]);
+
+  useEffect(() => {
+    if (activeTab !== "ga4" || gaSettings) return;
+    setGaLoading(true);
+    getGa4Settings()
+      .then((s) => {
+        setGaSettings(s);
+        setGaMeasurementId(s.measurementId || "");
+        setGaPropertyId(s.propertyId || "");
+        setGaEnabled(s.enabled);
+      })
+      .catch((err) => toast.error("Google Analytics", String(err?.message || err)))
+      .finally(() => setGaLoading(false));
+  }, [activeTab, gaSettings, toast]);
 
   // Initialize form with settings data
   if (settings && !initialized) {
@@ -83,6 +114,7 @@ export function SettingsPage() {
     { id: "security", label: t.settings.security, icon: Shield },
     { id: "notifications", label: t.settings.notifications, icon: Bell },
     { id: "api", label: "Mailgun", icon: Key },
+    { id: "ga4", label: "Google Analytics", icon: BarChart3 },
   ];
 
   const handleSaveProfile = async () => {
@@ -186,6 +218,46 @@ export function SettingsPage() {
       toast.error("Erro no diagnóstico", String((err as Error)?.message || err));
     } finally {
       setDiagLoading(false);
+    }
+  };
+
+  const handleSaveGa4 = async () => {
+    setGaSaving(true);
+    setGaTestResult(null);
+    try {
+      await updateGa4Settings({
+        measurementId: gaMeasurementId.trim(),
+        propertyId: gaPropertyId.trim(),
+        serviceAccountJson: gaSaJson.trim() || undefined,
+        enabled: gaEnabled,
+      });
+      toast.success("GA4 atualizado", "Configurações salvas com sucesso");
+      setGaSaJson("");
+      const s = await getGa4Settings();
+      setGaSettings(s);
+    } catch (err) {
+      toast.error("Erro ao salvar GA4", String((err as Error)?.message || err));
+    } finally {
+      setGaSaving(false);
+    }
+  };
+
+  const handleTestGa4 = async () => {
+    setGaTesting(true);
+    setGaTestResult(null);
+    try {
+      const res = await testGa4Connection();
+      setGaTestResult({
+        ok: true,
+        message: `Conexão OK. Sessões nas últimas 24h: ${res.sampleSessions}`,
+      });
+    } catch (err) {
+      setGaTestResult({
+        ok: false,
+        message: String((err as Error)?.message || err),
+      });
+    } finally {
+      setGaTesting(false);
     }
   };
 
@@ -660,6 +732,204 @@ export function SettingsPage() {
                           </ul>
                         </div>
                       )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === "ga4" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Google Analytics 4</CardTitle>
+                  <CardDescription>
+                    Rastreie cliques dos seus emails via UTM + GA4. Quando ligado, os links das campanhas
+                    recebem automaticamente <code className="font-mono text-xs">utm_source=supersend</code>,{" "}
+                    <code className="font-mono text-xs">utm_medium=email</code> e{" "}
+                    <code className="font-mono text-xs">utm_campaign=&lt;ID da campanha&gt;</code>. As estatísticas
+                    aparecem em Analytics, ao filtrar uma campanha.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {gaLoading && !gaSettings ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {gaSettings && (
+                        <div className="rounded-md border border-border bg-bg-subtle p-3 text-sm text-text-muted">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-text">Status:</span>
+                            <span
+                              className={`rounded px-2 py-0.5 font-mono text-xs ${
+                                gaSettings.enabled
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-bg-muted text-text-muted"
+                              }`}
+                            >
+                              {gaSettings.enabled ? "ativo" : "desativado"}
+                            </span>
+                          </div>
+                          <p className="mt-1">
+                            Measurement ID:{" "}
+                            <span className="font-mono">{gaSettings.measurementId || "(não definido)"}</span>
+                          </p>
+                          <p>
+                            Property ID:{" "}
+                            <span className="font-mono">{gaSettings.propertyId || "(não definido)"}</span>
+                          </p>
+                          <p>
+                            Service Account:{" "}
+                            <span className="font-mono">
+                              {gaSettings.hasServiceAccount
+                                ? gaSettings.serviceAccountEmail
+                                : "(não definido)"}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                          <div>
+                            <p className="font-medium text-text">Habilitar GA4</p>
+                            <p className="text-xs text-text-muted">
+                              Quando ligado, links em campanhas serão reescritos com UTMs e o painel de
+                              Analytics consultará o GA4.
+                            </p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={gaEnabled}
+                            onChange={(e) => setGaEnabled(e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <div
+                            onClick={() => setGaEnabled((v) => !v)}
+                            className={`relative h-6 w-11 cursor-pointer rounded-full transition-colors ${
+                              gaEnabled ? "bg-primary" : "bg-surface-light"
+                            }`}
+                          >
+                            <div
+                              className={`absolute top-[2px] h-5 w-5 rounded-full bg-white transition-transform ${
+                                gaEnabled ? "translate-x-[22px]" : "translate-x-[2px]"
+                              }`}
+                            />
+                          </div>
+                        </label>
+
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">
+                            Measurement ID
+                          </label>
+                          <Input
+                            type="text"
+                            placeholder="G-XXXXXXXXXX"
+                            value={gaMeasurementId}
+                            onChange={(e) => setGaMeasurementId(e.target.value)}
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Encontre em GA4 → Admin → Data Streams → Web → seu stream. Ex.:{" "}
+                            <code className="font-mono">G-2MNZQWYSZE</code> (apenas para exibição).
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">
+                            Property ID
+                          </label>
+                          <Input
+                            type="text"
+                            placeholder="123456789"
+                            value={gaPropertyId}
+                            onChange={(e) => setGaPropertyId(e.target.value)}
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Número (sem o prefixo "G-"). Encontre em GA4 → Admin → Property settings →
+                            Property ID. <strong>Obrigatório</strong> para a Data API.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">
+                            Service Account JSON
+                          </label>
+                          <textarea
+                            className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            rows={6}
+                            placeholder={
+                              gaSettings?.hasServiceAccount
+                                ? "(deixe em branco para manter o JSON atual)"
+                                : '{"type":"service_account","project_id":"...","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n..."}'
+                            }
+                            value={gaSaJson}
+                            onChange={(e) => setGaSaJson(e.target.value)}
+                            spellCheck={false}
+                            autoComplete="off"
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Crie uma Service Account no GCP com a role <strong>Viewer</strong> da
+                            propriedade GA4 (em GA4 Admin → Property Access Management → adicione o
+                            email da SA com permissão "Viewer"). Habilite a{" "}
+                            <strong>Google Analytics Data API</strong> no projeto GCP. Cole aqui o
+                            conteúdo do arquivo .json baixado.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button onClick={handleSaveGa4} disabled={gaSaving}>
+                            {gaSaving ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="mr-2 h-4 w-4" />
+                            )}
+                            Salvar GA4
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={handleTestGa4}
+                            disabled={gaTesting || !gaSettings?.hasServiceAccount}
+                          >
+                            {gaTesting ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            Testar conexão
+                          </Button>
+                        </div>
+
+                        {gaTestResult && (
+                          <div
+                            className={`rounded-md border p-3 text-sm ${
+                              gaTestResult.ok
+                                ? "border-green-200 bg-green-50 text-green-800"
+                                : "border-red-200 bg-red-50 text-red-800"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              {gaTestResult.ok ? (
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                              ) : (
+                                <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                              )}
+                              <span className="break-words">{gaTestResult.message}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                          <p className="mb-1 font-semibold">Recomendação Mailgun</p>
+                          <p>
+                            Para evitar o aviso de SSL no clique (URL{" "}
+                            <code className="font-mono">email.mg.&hellip;</code>), desligue o{" "}
+                            <strong>click tracking</strong> no Mailgun (mantenha apenas{" "}
+                            <strong>open tracking</strong>) e use o GA4 para cliques. Os links chegam
+                            ao destinatário sem reescrita, com UTMs preservadas.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </CardContent>

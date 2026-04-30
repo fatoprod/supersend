@@ -1,11 +1,22 @@
 import * as admin from "firebase-admin";
 import { sendBulkEmails, downloadFileAsBuffer, AttachmentData } from "./mailgun";
+import { appendUtmsToHtml } from "./utmRewriter";
 
 interface EmailResult {
   to: string;
   success: boolean;
   messageId?: string;
   error?: string;
+}
+
+function slug(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 /**
@@ -58,10 +69,33 @@ export async function executeCampaignSend(
     attachments = await downloadAttachments(campaignData.attachments);
   }
 
+  // Rewrite all links in the HTML body to add UTM parameters so clicks can be
+  // tracked via Google Analytics on the destination site.
+  // Allows per-campaign overrides via campaignData.utm.{source,medium,campaign,content,term}.
+  const utmCfg = (campaignData.utm || {}) as {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    content?: string;
+    term?: string;
+    enabled?: boolean;
+  };
+  const utmEnabled = utmCfg.enabled !== false; // default ON
+  const html: string | undefined =
+    utmEnabled && campaignData.html
+      ? appendUtmsToHtml(campaignData.html, {
+          source: utmCfg.source || "supersend",
+          medium: utmCfg.medium || "email",
+          campaign: utmCfg.campaign || campaignId,
+          content: utmCfg.content || (campaignData.name ? slug(String(campaignData.name)) : undefined),
+          term: utmCfg.term,
+        })
+      : campaignData.html;
+
   const result = await sendBulkEmails({
     recipients: campaignData.recipients,
     subject: campaignData.subject,
-    html: campaignData.html,
+    html,
     text: campaignData.text,
     from: campaignData.from || "noreply@supersend.app",
     replyTo: campaignData.replyTo || undefined,
