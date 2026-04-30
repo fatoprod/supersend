@@ -5,7 +5,6 @@
 
 /** Variables that are required — must be filled before sending */
 export const REQUIRED_VARIABLES = new Set([
-  "company",
   "title",
   "content",
   "subject",

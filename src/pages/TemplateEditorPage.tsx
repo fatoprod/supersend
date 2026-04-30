@@ -4,6 +4,7 @@ import { Header } from "../components/layout";
 import { Button, Input, EmailPreviewModal } from "../components/ui";
 import {
   ArrowLeft, Eye, Loader2, Save, Palette, RotateCcw, AlertCircle, CheckCircle2, Upload, Image,
+  AlignLeft, AlignCenter, AlignRight, Type,
 } from "lucide-react";
 import { useTemplates, useCreateTemplate, useUpdateTemplate, useToast } from "../hooks";
 import { uploadLogo, LOGO_GUIDELINES } from "../lib/services/storage";
@@ -16,6 +17,20 @@ import {
   replaceVariables,
   cleanUnfilledOptionalVars,
 } from "../lib/templateUtils";
+import {
+  applyCustomization,
+  extractCustomization,
+  serializeCustomization,
+  GOOGLE_FONTS,
+  findFontById,
+  googleFontUrl,
+  DEFAULT_CUSTOMIZATION,
+  type TemplateCustomization,
+  type Alignment,
+  type Density,
+  type CtaStyle,
+  type FontScale,
+} from "../lib/templateCustomization";
 
 // Variables to exclude from the form (they are set elsewhere)
 const EXCLUDED_VARIABLES = new Set(["subject", "logo_width"]);
@@ -47,28 +62,34 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f7; padding: 32px 0;">
     <tr>
       <td align="center">
-        <!-- Container -->
         <!--[if mso]>
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" align="center"><tr><td>
         <![endif]-->
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);">
-          
-          <!-- Header -->
+
+          <!-- region:header -->
           <tr>
             <td style="background-color: #6366f1; padding: 40px 40px 36px 40px; text-align: center; border-radius: 16px 16px 0 0;">
               <img src="{{logo_url}}" alt="{{company}}" width="{{logo_width}}" height="auto" style="display: block; margin: 0 auto; max-width: {{logo_width}}px; height: auto; border-radius: 8px;" />
-              <p style="margin: 14px 0 0 0; font-size: 14px; color: #c7d2fe; letter-spacing: 0.5px; font-weight: 500;">{{company}}</p>
+              <!-- region:company-name -->
+              <p style="margin: 14px 0 0 0; font-size: 14px; color: #c7d2fe; letter-spacing: 0.5px; font-weight: 500; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">{{company}}</p>
+              <!-- /region:company-name -->
             </td>
           </tr>
+          <!-- /region:header -->
 
-          <!-- Content -->
+          <!-- region:content -->
           <tr>
             <td style="padding: 44px 44px 36px 44px;">
-              <h1 style="margin: 0 0 18px 0; font-size: 26px; font-weight: 700; color: #1e1b4b; line-height: 1.3;">{{title}}</h1>
-              <p style="margin: 0 0 28px 0; font-size: 16px; color: #4b5563; line-height: 1.65;">{{content}}</p>
-              
-              <!-- CTA Button (with MSO VML rounded fallback for Outlook desktop) -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 8px 0 0 0;">
+              <!-- region:title -->
+              <h1 style="margin: 0 0 18px 0; font-size: 26px; font-weight: 700; color: #1e1b4b; line-height: 1.3; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; text-align: left;">{{title}}</h1>
+              <!-- /region:title -->
+              <!-- region:body -->
+              <p style="margin: 0 0 28px 0; font-size: 16px; color: #4b5563; line-height: 1.65; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; text-align: left;">{{content}}</p>
+              <!-- /region:body -->
+
+              <!-- region:cta -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="left" style="margin: 8px 0 0 0;">
                 <tr>
                   <td>
                     <!--[if mso]>
@@ -78,35 +99,39 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
                     </v:roundrect>
                     <![endif]-->
                     <!--[if !mso]><!-- -->
-                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; background-color: #6366f1; border-radius: 10px; mso-hide: all;">{{cta_text}}</a>
+                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; background-color: #6366f1; border-radius: 10px; border: none; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; mso-hide: all;">{{cta_text}}</a>
                     <!--<![endif]-->
                   </td>
                 </tr>
               </table>
+              <!-- /region:cta -->
             </td>
           </tr>
+          <!-- /region:content -->
 
-          <!-- Divider -->
+          <!-- region:divider -->
           <tr>
             <td style="padding: 0 44px;">
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;" />
             </td>
           </tr>
+          <!-- /region:divider -->
 
-          <!-- Footer -->
+          <!-- region:footer -->
           <tr>
             <td style="padding: 28px 44px 36px 44px; text-align: center;">
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
                 Você recebeu este email porque está inscrito em {{company}}.
               </p>
-              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
                 <a href="{{unsubscribe_url}}" style="color: #6366f1; text-decoration: underline;">Descadastrar</a> · <a href="{{preferences_url}}" style="color: #6366f1; text-decoration: underline;">Preferências</a>
               </p>
-              <p style="margin: 16px 0 0 0; font-size: 12px; color: #d1d5db;">
+              <p style="margin: 16px 0 0 0; font-size: 12px; color: #d1d5db; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
                 {{company_address}}
               </p>
             </td>
           </tr>
+          <!-- /region:footer -->
 
         </table>
         <!--[if mso]>
@@ -139,6 +164,19 @@ function applyCornerStyle(html: string, style: CornerStyle): string {
     .replace(/arcsize\s*=\s*"[^"]*"/gi, 'arcsize="0%"');
 }
 
+/** Apply both color overrides AND advanced customization (alignment, fonts, sections, etc.) */
+function bakeAll(
+  html: string,
+  colors: Record<string, string>,
+  cornerStyle: CornerStyle,
+  customization: TemplateCustomization
+): string {
+  let result = applyColors(html, colors);
+  result = applyCornerStyle(result, cornerStyle);
+  result = applyCustomization(result, customization);
+  return result;
+}
+
 export function TemplateEditorPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -154,6 +192,11 @@ export function TemplateEditorPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoWidth, setLogoWidth] = useState(160);
   const [cornerStyle, setCornerStyle] = useState<CornerStyle>("rounded");
+  const [customization, setCustomization] = useState<TemplateCustomization>({
+    ...DEFAULT_CUSTOMIZATION,
+  });
+  /** Currently selected Google Font id (controls picker UI). */
+  const [fontId, setFontId] = useState<string>("system");
 
   // Form state - use default HTML template for new templates
   const [name, setName] = useState("");
@@ -217,6 +260,18 @@ export function TemplateEditorPage() {
         } else {
           setCornerStyle(/border-radius\s*:/i.test(template.html) ? "rounded" : "square");
         }
+        // Load saved advanced customization (alignment, fonts, sections, etc.)
+        const savedCustomization = extractCustomization(template.defaultVariables);
+        setCustomization(savedCustomization);
+        // Resolve fontId from the saved stack/href
+        const matchedFont =
+          GOOGLE_FONTS.find(
+            (f) =>
+              (savedCustomization.googleFontHref &&
+                googleFontUrl(f) === savedCustomization.googleFontHref) ||
+              f.stack === savedCustomization.fontFamily
+          ) || GOOGLE_FONTS[0];
+        setFontId(matchedFont.id);
         setLoaded(true);
       }
     }
@@ -248,6 +303,8 @@ export function TemplateEditorPage() {
     result = applyColors(result, colors);
     // Apply corner style (strip border-radius if "square")
     result = applyCornerStyle(result, cornerStyle);
+    // Apply advanced customization (alignment, fonts, sections, etc.)
+    result = applyCustomization(result, customization);
     // Replace variables filled for preview
     result = replaceVariables(result, { ...previewVars, logo_width: String(logoWidth) });
     // Clean unfilled optional vars
@@ -293,7 +350,7 @@ export function TemplateEditorPage() {
 
   // When saving, persist the HTML with colors baked in (variables remain as {{...}})
   const getSaveHtml = () => {
-    return applyCornerStyle(applyColors(html, colors), cornerStyle);
+    return bakeAll(html, colors, cornerStyle, customization);
   };
 
   // Generate plain text from HTML
@@ -343,6 +400,8 @@ export function TemplateEditorPage() {
     defaultVariables._color_bodyText = colors.bodyText;
     defaultVariables._color_background = colors.background;
     defaultVariables._corner_style = cornerStyle;
+    // Save advanced customization metadata
+    Object.assign(defaultVariables, serializeCustomization(customization));
     
     const data: EmailTemplateFormData = {
       name,
@@ -493,6 +552,199 @@ export function TemplateEditorPage() {
                 >
                   Reto
                 </button>
+              </div>
+            </section>
+
+            {/* Section 2.6: Layout & Tipografia */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text">Layout & Tipografia</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomization({ ...DEFAULT_CUSTOMIZATION });
+                    setFontId("system");
+                  }}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-primary"
+                >
+                  <RotateCcw className="h-3 w-3" /> Restaurar
+                </button>
+              </div>
+
+              {/* Google Font picker */}
+              <div className="mb-5">
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-text-muted">
+                  <Type className="h-3.5 w-3.5" /> Fonte (Google Fonts)
+                </label>
+                <select
+                  value={fontId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setFontId(id);
+                    const font = findFontById(id);
+                    if (!font) return;
+                    setCustomization((c) => ({
+                      ...c,
+                      fontFamily: font.stack,
+                      googleFontHref: font.id === "system" ? undefined : googleFontUrl(font),
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
+                  style={{ fontFamily: findFontById(fontId)?.stack }}
+                >
+                  <optgroup label="Sistema">
+                    {GOOGLE_FONTS.filter((f) => f.category === "system").map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Sans-serif">
+                    {GOOGLE_FONTS.filter((f) => f.category === "sans").map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Serif">
+                    {GOOGLE_FONTS.filter((f) => f.category === "serif").map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Monospace">
+                    {GOOGLE_FONTS.filter((f) => f.category === "mono").map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <p className="mt-1 text-xs text-text-muted">
+                  Aplicada com fallback automático para clientes que não suportam web fonts.
+                </p>
+              </div>
+
+              {/* Density */}
+              <div className="mb-5">
+                <label className="mb-2 block text-xs font-medium text-text-muted">Espaçamento</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["compact", "normal", "spacious"] as Density[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setCustomization((c) => ({ ...c, density: d }))}
+                      className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                        customization.density === d
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-surface text-text-muted hover:border-primary/50"
+                      }`}
+                    >
+                      {d === "compact" ? "Compacto" : d === "normal" ? "Normal" : "Espaçoso"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Font scale */}
+              <div className="mb-1">
+                <label className="mb-2 block text-xs font-medium text-text-muted">Tamanho da fonte</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["sm", "md", "lg"] as FontScale[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setCustomization((c) => ({ ...c, fontScale: s }))}
+                      className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                        customization.fontScale === s
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-surface text-text-muted hover:border-primary/50"
+                      }`}
+                    >
+                      {s === "sm" ? "Pequeno" : s === "md" ? "Médio" : "Grande"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Section 2.7: Alinhamento */}
+            <section>
+              <h3 className="mb-4 text-base font-semibold text-text">Alinhamento</h3>
+              {([
+                { key: "alignTitle" as const, label: "Título" },
+                { key: "alignBody" as const, label: "Corpo do texto" },
+                { key: "alignCta" as const, label: "Botão (CTA)" },
+              ]).map(({ key, label }) => (
+                <div key={key} className="mb-4 last:mb-0">
+                  <label className="mb-2 block text-xs font-medium text-text-muted">{label}</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["left", "center", "right"] as Alignment[]).map((a) => {
+                      const Icon = a === "left" ? AlignLeft : a === "center" ? AlignCenter : AlignRight;
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setCustomization((c) => ({ ...c, [key]: a }))}
+                          className={`flex items-center justify-center rounded-lg border px-2 py-2 transition ${
+                            customization[key] === a
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-surface text-text-muted hover:border-primary/50"
+                          }`}
+                          aria-label={a}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            {/* Section 2.8: Estilo do botão */}
+            <section>
+              <h3 className="mb-4 text-base font-semibold text-text">Estilo do botão</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: "solid" as CtaStyle, label: "Sólido" },
+                  { v: "outline" as CtaStyle, label: "Contorno" },
+                  { v: "link" as CtaStyle, label: "Link" },
+                ]).map(({ v, label }) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setCustomization((c) => ({ ...c, ctaStyle: v }))}
+                    className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                      customization.ctaStyle === v
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-surface text-text-muted hover:border-primary/50"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Section 2.9: Seções visíveis */}
+            <section>
+              <h3 className="mb-4 text-base font-semibold text-text">Seções visíveis</h3>
+              <div className="space-y-2">
+                {([
+                  { key: "showHeader" as const, label: "Cabeçalho (logo)" },
+                  { key: "showCompany" as const, label: "Nome da empresa" },
+                  { key: "showDivider" as const, label: "Linha divisória" },
+                  { key: "showFooter" as const, label: "Rodapé (descadastro)" },
+                ]).map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-primary/50"
+                  >
+                    <span className="text-text">{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={customization[key]}
+                      onChange={(e) =>
+                        setCustomization((c) => ({ ...c, [key]: e.target.checked }))
+                      }
+                      className="h-4 w-4 cursor-pointer accent-primary"
+                    />
+                  </label>
+                ))}
               </div>
             </section>
 

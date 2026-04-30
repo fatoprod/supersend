@@ -23,18 +23,27 @@ const EMAIL_BASE_HTML = `<!DOCTYPE html>
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" align="center"><tr><td>
         <![endif]-->
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);">
+          <!-- region:header -->
           <tr>
             <td style="background-color: __PRIMARY__; padding: 40px 40px 36px 40px; text-align: center; border-radius: 16px 16px 0 0;">
               <img src="{{logo_url}}" alt="{{company}}" width="{{logo_width}}" height="auto" style="display: block; margin: 0 auto; max-width: {{logo_width}}px; height: auto; border-radius: 8px;" />
-              <p style="margin: 14px 0 0 0; font-size: 14px; color: #ffffff; opacity: 0.9; letter-spacing: 0.5px; font-weight: 500;">{{company}}</p>
+              <!-- region:company-name -->
+              <p style="margin: 14px 0 0 0; font-size: 14px; color: #ffffff; opacity: 0.9; letter-spacing: 0.5px; font-weight: 500; font-family: __FONT_FAMILY__;">{{company}}</p>
+              <!-- /region:company-name -->
             </td>
           </tr>
+          <!-- /region:header -->
+          <!-- region:content -->
           <tr>
             <td style="padding: 44px 44px 36px 44px;">
-              <h1 style="margin: 0 0 18px 0; font-size: 26px; font-weight: 700; color: __TITLE_COLOR__; line-height: 1.3;">{{title}}</h1>
-              <p style="margin: 0 0 28px 0; font-size: 16px; color: __BODY_COLOR__; line-height: 1.65;">{{content}}</p>
-              <!-- CTA Button (with MSO VML rounded fallback for Outlook desktop) -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 8px 0 0 0;">
+              <!-- region:title -->
+              <h1 style="margin: 0 0 18px 0; font-size: 26px; font-weight: 700; color: __TITLE_COLOR__; line-height: 1.3; font-family: __FONT_FAMILY__; text-align: left;">{{title}}</h1>
+              <!-- /region:title -->
+              <!-- region:body -->
+              <p style="margin: 0 0 28px 0; font-size: 16px; color: __BODY_COLOR__; line-height: 1.65; font-family: __FONT_FAMILY__; text-align: left;">{{content}}</p>
+              <!-- /region:body -->
+              <!-- region:cta -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="left" style="margin: 8px 0 0 0;">
                 <tr>
                   <td>
                     <!--[if mso]>
@@ -44,31 +53,37 @@ const EMAIL_BASE_HTML = `<!DOCTYPE html>
                     </v:roundrect>
                     <![endif]-->
                     <!--[if !mso]><!-- -->
-                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; background-color: __PRIMARY__; border-radius: 10px; mso-hide: all;">{{cta_text}}</a>
+                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; background-color: __PRIMARY__; border-radius: 10px; border: none; font-family: __FONT_FAMILY__; mso-hide: all;">{{cta_text}}</a>
                     <!--<![endif]-->
                   </td>
                 </tr>
               </table>
+              <!-- /region:cta -->
             </td>
           </tr>
+          <!-- /region:content -->
+          <!-- region:divider -->
           <tr>
             <td style="padding: 0 44px;">
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;" />
             </td>
           </tr>
+          <!-- /region:divider -->
+          <!-- region:footer -->
           <tr>
             <td style="padding: 28px 44px 36px 44px; text-align: center;">
-              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5; font-family: __FONT_FAMILY__;">
                 Você recebeu este email porque está inscrito em {{company}}.
               </p>
-              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
+              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5; font-family: __FONT_FAMILY__;">
                 <a href="{{unsubscribe_url}}" style="color: __PRIMARY__; text-decoration: underline;">Descadastrar</a> · <a href="{{preferences_url}}" style="color: __PRIMARY__; text-decoration: underline;">Preferências</a>
               </p>
-              <p style="margin: 16px 0 0 0; font-size: 12px; color: #d1d5db;">
+              <p style="margin: 16px 0 0 0; font-size: 12px; color: #d1d5db; font-family: __FONT_FAMILY__;">
                 {{company_address}}
               </p>
             </td>
           </tr>
+          <!-- /region:footer -->
         </table>
         <!--[if mso]>
         </td></tr></table>
