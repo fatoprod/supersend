@@ -166,6 +166,54 @@ Este projeto roda dentro de um projeto Firebase compartilhado (`studio-959733504
 | `processCampaign` | Callable | Processa e envia campanha para lista de contatos |
 | `processScheduledCampaigns` | Scheduled | Verifica e envia campanhas agendadas (a cada 5 min) |
 | `mailgunWebhook` | HTTP | Recebe webhooks do Mailgun (opens, clicks, bounces, etc.) |
+| `listMyContactLists` | Callable | Lista as `contactLists` do usuário autenticado (consumida pelo SuperLeed) |
+| `importLeadsFromSuperLeed` | Callable | Importa leads enviados pelo SuperLeed como contatos em uma lista |
+| `generateTemplateFromUrl` | Callable | Gera um template de email a partir de uma URL de referência (extrai logo, paleta e fonte da marca) |
+
+### Integração com SuperLeed
+
+O **[SuperLeed](../superleed)** captura leads (Google Places + scraping de email) e os envia ao SuperSend para virarem contatos prontos para campanha.
+
+**Mecanismo:** ambos rodam no mesmo projeto Firebase (`studio-9597335049-1a59a`) e compartilham Firebase Auth — o token do usuário logado autentica as duas callables abaixo.
+
+**Callables expostas:**
+
+- **`listMyContactLists`** (`onCall`)
+  - Auth obrigatório.
+  - Retorna `{ lists: [{ id, name, description, contactCount }] }` — apenas listas do `uid` chamador.
+  - Usada pelo SuperLeed para popular o seletor "Lista de destino".
+
+- **`importLeadsFromSuperLeed`** (`onCall`)
+  - Auth obrigatório.
+  - Payload:
+    ```ts
+    {
+      leads: SuperLeedLeadInput[],          // máx 5000
+      target:
+        | { mode: "existing", listId: string }
+        | { mode: "new", name: string, description?: string },
+      source?: { searchId?: string, query?: string }
+    }
+    ```
+  - Comportamento:
+    - Valida ownership da lista (quando `existing`).
+    - Cria a lista nova (quando `new`).
+    - Filtra leads sem email válido (regex padrão).
+    - Dedupe por email (case-insensitive) dentro do payload **e** contra contatos já presentes na lista.
+    - Escreve em batches de 500 e atualiza `contactCount` via `increment`.
+  - Retorno: `{ success, listId, listName, imported, skipped, withoutEmail, duplicates }`.
+
+**Mapeamento Lead → Contact:**
+
+| Contact | Origem |
+|---|---|
+| `email` | `lead.email` (lowercase, validado por regex) |
+| `company` | `cnpjData.nomeFantasia ?? cnpjData.razaoSocial ?? lead.name` |
+| `tags` | `["superleed", "query:<query>"]` |
+| `customFields` | `source`, `searchId`, `cnpj`, `phone`, `website`, `address`, `googleMapsUrl`, `completenessScore`, `rating` (todos opcionais) |
+| `unsubscribed` / `bounced` | `false` |
+
+**Implementação:** `functions/src/integrations/superleed.ts` (`importLeadsToList`) + handlers em `functions/src/index.ts`.
 
 ### Mailgun Webhook Setup
 
@@ -196,6 +244,31 @@ O signing key está no Mailgun Dashboard → Settings → API Keys → HTTP Webh
    - Opens tracking: **ON**
    - Clicks tracking: **ON**
    - Unsubscribes tracking: **ON**
+
+## Gerar Template a partir de URL
+
+Página dedicada (rota `/templates/new/from-url`, botão **"Gerar de URL"** em `/templates`) que cria um template de email aplicando a identidade visual de qualquer site público.
+
+**Como funciona:**
+
+1. Usuário cola a URL (ex: `https://exemplo.com.br`) e clica **"Buscar marca"**.
+2. A callable `generateTemplateFromUrl` baixa a HTML server-side (com proteção SSRF) e extrai via cheerio:
+   - **Logo** (preferência: `og:logo` → `apple-touch-icon` → `og:image` → `link rel=icon` → `<img>` no `<header>` → `/favicon.ico`).
+   - **Nome da marca** (`og:site_name` → `<title>` → hostname).
+   - **Cor primária** (`<meta name="theme-color">` → fundo de `header`/`button` em `<style>` → cor não-neutra mais frequente em `style=` inline).
+   - **Cores de título/corpo/fundo** (de seletores `h1`/`h2`/`body`/`html` no CSS inline).
+   - **Font-family** (de `body` no CSS, com fallback web-safe).
+3. O HTML gerado usa um layout email-safe (tabelas + CSS inline) com a paleta extraída e mantém as variáveis `{{title}}`, `{{content}}`, `{{cta_text}}`, `{{cta_url}}`, `{{logo_url}}`, `{{company}}`, `{{subject}}`, etc. — totalmente compatível com `processCampaign`.
+4. Usuário pode ajustar cores via color pickers, escolhe título, conteúdo, CTA, e salva. O template aparece em `/templates` e pode ser editado normalmente.
+
+**Limites e proteções:**
+
+- Apenas URLs `http(s)` públicas — IPs privados/loopback são bloqueados (SSRF guard).
+- Timeout de 8s e limite de 2MB no body.
+- Rate limit de 1 chamada / 5s por usuário (in-memory por instância).
+- SPAs renderizadas só via JS (sem SSR) caem nos defaults (parser não executa JS).
+
+**Por que não copiamos CSS do site direto:** clientes de email (Gmail, Outlook, Apple Mail) removem `<link>`, têm suporte parcial a `<style>` e não suportam flexbox/grid. Aplicar a marca a um layout email-safe pré-validado é a abordagem usada por Mailchimp, Brevo e similares.
 
 ## Firestore Collections
 

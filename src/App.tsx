@@ -13,6 +13,7 @@ const CampaignsPage = lazy(() => import("./pages/CampaignsPage").then(m => ({ de
 const CampaignEditorPage = lazy(() => import("./pages/CampaignEditorPage").then(m => ({ default: m.CampaignEditorPage })));
 const TemplatesPage = lazy(() => import("./pages/TemplatesPage").then(m => ({ default: m.TemplatesPage })));
 const TemplateEditorPage = lazy(() => import("./pages/TemplateEditorPage").then(m => ({ default: m.TemplateEditorPage })));
+const TemplateFromUrlPage = lazy(() => import("./pages/TemplateFromUrlPage").then(m => ({ default: m.TemplateFromUrlPage })));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage").then(m => ({ default: m.AnalyticsPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then(m => ({ default: m.LoginPage })));
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/campaigns/:campaignId/edit" element={<Suspense fallback={<PageLoader />}><CampaignEditorPage /></Suspense>} />
             <Route path="/templates" element={<Suspense fallback={<PageLoader />}><TemplatesPage /></Suspense>} />
             <Route path="/templates/new" element={<Suspense fallback={<PageLoader />}><TemplateEditorPage /></Suspense>} />
+            <Route path="/templates/new/from-url" element={<Suspense fallback={<PageLoader />}><TemplateFromUrlPage /></Suspense>} />
             <Route path="/templates/:templateId/edit" element={<Suspense fallback={<PageLoader />}><TemplateEditorPage /></Suspense>} />
             <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsPage /></Suspense>} />
             <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />

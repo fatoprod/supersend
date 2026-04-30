@@ -1,0 +1,443 @@
+import * as cheerio from "cheerio";
+import * as dns from "dns/promises";
+import * as net from "net";
+
+export interface ExtractedBrand {
+  sourceUrl: string;
+  logoUrl?: string;
+  brandName?: string;
+  colors: {
+    primary: string;
+    titleText: string;
+    bodyText: string;
+    background: string;
+  };
+  fontFamily: string;
+  suggestedSubject: string;
+  suggestedTemplateName: string;
+}
+
+const DEFAULTS = {
+  primary: "#6366f1",
+  titleText: "#1e1b4b",
+  bodyText: "#4b5563",
+  background: "#f4f4f7",
+  fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+};
+
+const FETCH_TIMEOUT_MS = 8000;
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB
+const USER_AGENT = "SuperSendBrandBot/1.0 (+https://supersendapp.web.app)";
+
+function isPrivateIp(ip: string): boolean {
+  if (!net.isIP(ip)) return true;
+  if (net.isIPv4(ip)) {
+    const parts = ip.split(".").map(Number);
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    if (parts[0] === 0) return true;
+    if (parts[0] >= 224) return true; // multicast / reserved
+    return false;
+  }
+  // IPv6: block loopback / link-local / unique-local
+  const lower = ip.toLowerCase();
+  if (lower === "::1") return true;
+  if (lower === "::") return true;
+  if (lower.startsWith("fe80:")) return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  return false;
+}
+
+async function assertPublicHost(hostname: string): Promise<void> {
+  if (!hostname) throw new Error("Hostname inválido");
+  if (hostname === "localhost") throw new Error("Hostname não permitido");
+  // Reject literal IPs that are private right away
+  if (net.isIP(hostname) && isPrivateIp(hostname)) {
+    throw new Error("IP privado não permitido");
+  }
+  try {
+    const records = await dns.lookup(hostname, { all: true });
+    for (const rec of records) {
+      if (isPrivateIp(rec.address)) {
+        throw new Error("Hostname resolve para IP privado");
+      }
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOTFOUND") {
+      throw new Error("Hostname não encontrado");
+    }
+    throw err;
+  }
+}
+
+function normalizeUrl(input: string): URL {
+  let u = input.trim();
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  const parsed = new URL(u);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Apenas URLs http(s) são permitidas");
+  }
+  return parsed;
+}
+
+async function fetchHtml(url: URL): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "user-agent": USER_AGENT,
+        "accept": "text/html,application/xhtml+xml",
+        "accept-language": "pt-BR,pt;q=0.9,en;q=0.8",
+      },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    if (!res.ok) {
+      throw new Error(`URL retornou status ${res.status}`);
+    }
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("html") && !ct.includes("xml") && ct !== "") {
+      throw new Error(`Tipo de conteúdo não suportado: ${ct}`);
+    }
+    const reader = res.body?.getReader();
+    if (!reader) {
+      const txt = await res.text();
+      return txt.slice(0, MAX_BODY_BYTES);
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.length;
+        if (total > MAX_BODY_BYTES) {
+          try { await reader.cancel(); } catch {/* ignore */}
+          break;
+        }
+        chunks.push(value);
+      }
+    }
+    return Buffer.concat(chunks.map(c => Buffer.from(c))).toString("utf-8");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function absolutize(href: string | undefined, base: URL): string | undefined {
+  if (!href) return undefined;
+  try {
+    return new URL(href, base).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function isHttpUrl(u: string | undefined): boolean {
+  if (!u) return false;
+  try {
+    const p = new URL(u);
+    return p.protocol === "http:" || p.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function pickLargestSize(sizes: string | undefined): number {
+  if (!sizes) return 0;
+  // sizes like "180x180" or "32x32 64x64"
+  let max = 0;
+  for (const tok of sizes.split(/\s+/)) {
+    const m = tok.match(/^(\d+)x(\d+)$/i);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return max;
+}
+
+function extractLogo($: cheerio.CheerioAPI, base: URL): string | undefined {
+  const candidates: { url: string; score: number }[] = [];
+
+  $('meta[property="og:logo"], meta[name="og:logo"]').each((_, el) => {
+    const u = absolutize($(el).attr("content"), base);
+    if (u) candidates.push({ url: u, score: 100 });
+  });
+
+  $('link[rel*="apple-touch-icon" i]').each((_, el) => {
+    const $el = $(el);
+    const u = absolutize($el.attr("href"), base);
+    if (u) {
+      const sz = pickLargestSize($el.attr("sizes"));
+      candidates.push({ url: u, score: 80 + sz });
+    }
+  });
+
+  $('meta[property="og:image"], meta[name="twitter:image"]').each((_, el) => {
+    const u = absolutize($(el).attr("content"), base);
+    if (u) candidates.push({ url: u, score: 70 });
+  });
+
+  $('link[rel="icon"], link[rel="shortcut icon"], link[rel="mask-icon"]').each((_, el) => {
+    const $el = $(el);
+    const u = absolutize($el.attr("href"), base);
+    if (u) {
+      const sz = pickLargestSize($el.attr("sizes"));
+      candidates.push({ url: u, score: 50 + sz });
+    }
+  });
+
+  // First img inside header (often the logo)
+  const headerImg = $("header img").first().attr("src");
+  const headerImgAbs = absolutize(headerImg, base);
+  if (headerImgAbs) candidates.push({ url: headerImgAbs, score: 60 });
+
+  // First img with class/id mentioning "logo"
+  $('img[class*="logo" i], img[id*="logo" i], img[alt*="logo" i]').each((_, el) => {
+    const u = absolutize($(el).attr("src"), base);
+    if (u) candidates.push({ url: u, score: 75 });
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  for (const c of candidates) {
+    if (isHttpUrl(c.url)) return c.url;
+  }
+  // Fallback: /favicon.ico
+  return new URL("/favicon.ico", base).toString();
+}
+
+function extractBrandName($: cheerio.CheerioAPI, base: URL): string | undefined {
+  const og = $('meta[property="og:site_name"]').attr("content")?.trim();
+  if (og) return og;
+  const title = $("title").first().text().trim();
+  if (title) {
+    // Split on common separators and take first part
+    const parts = title.split(/\s+[\-–—|·»:]\s+/);
+    const first = parts[0]?.trim();
+    if (first && first.length <= 80) return first;
+    if (title.length <= 80) return title;
+  }
+  // Fallback: domain
+  return base.hostname.replace(/^www\./, "");
+}
+
+function extractDescription($: cheerio.CheerioAPI): string | undefined {
+  const og = $('meta[property="og:description"]').attr("content")?.trim();
+  if (og) return og;
+  const desc = $('meta[name="description"]').attr("content")?.trim();
+  if (desc) return desc;
+  return undefined;
+}
+
+const HEX_COLOR_RE = /#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})\b/gi;
+const NAMED_NEUTRAL = new Set([
+  "#fff", "#ffffff", "#000", "#000000", "#fafafa", "#f4f4f7", "#f5f5f5",
+  "#eee", "#eeeeee", "#ddd", "#dddddd", "#ccc", "#cccccc", "#bbb", "#bbbbbb",
+  "#999", "#999999", "#888", "#888888", "#666", "#666666", "#444", "#444444",
+  "#333", "#333333", "#222", "#222222", "#111", "#111111",
+]);
+
+function normHex(c: string): string {
+  let h = c.toLowerCase().trim();
+  if (h.length === 4) {
+    // #abc -> #aabbcc
+    h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+  }
+  if (h.length === 9) h = h.slice(0, 7); // strip alpha
+  return h;
+}
+
+function isNeutral(c: string): boolean {
+  const h = normHex(c);
+  if (NAMED_NEUTRAL.has(h)) return true;
+  // grayscale: r==g==b within 10
+  if (h.length !== 7) return false;
+  const r = parseInt(h.slice(1, 3), 16);
+  const g = parseInt(h.slice(3, 5), 16);
+  const b = parseInt(h.slice(5, 7), 16);
+  return Math.abs(r - g) < 10 && Math.abs(g - b) < 10 && Math.abs(r - b) < 10;
+}
+
+function rgbToHex(rgb: string): string | undefined {
+  const m = rgb.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (!m) return undefined;
+  const r = parseInt(m[1], 10);
+  const g = parseInt(m[2], 10);
+  const b = parseInt(m[3], 10);
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function findColorInBlock(block: string, prop: "color" | "background-color" | "background"): string | undefined {
+  // Match `prop: <value>;`
+  const re = new RegExp(`${prop}\\s*:\\s*([^;}\\n]+)`, "i");
+  const m = block.match(re);
+  if (!m) return undefined;
+  const val = m[1].trim();
+  const hex = val.match(HEX_COLOR_RE);
+  if (hex && hex[0]) return normHex(hex[0]);
+  const rgb = rgbToHex(val);
+  if (rgb) return normHex(rgb);
+  return undefined;
+}
+
+function findCssBlocks(css: string, selectors: RegExp[]): string[] {
+  const blocks: string[] = [];
+  // Naive: find selector { ... } pairs
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) !== null) {
+    const sel = m[1].trim();
+    const body = m[2];
+    for (const s of selectors) {
+      if (s.test(sel)) {
+        blocks.push(body);
+        break;
+      }
+    }
+  }
+  return blocks;
+}
+
+function extractColors($: cheerio.CheerioAPI): {
+  primary: string; titleText: string; bodyText: string; background: string;
+} {
+  const themeColor = $('meta[name="theme-color"]').attr("content")?.trim();
+  let primary: string | undefined;
+  if (themeColor) {
+    const hex = themeColor.match(HEX_COLOR_RE);
+    if (hex && hex[0]) primary = normHex(hex[0]);
+    else {
+      const rgb = rgbToHex(themeColor);
+      if (rgb) primary = normHex(rgb);
+    }
+  }
+
+  // Aggregate all <style> contents
+  let allCss = "";
+  $("style").each((_, el) => { allCss += "\n" + $(el).text(); });
+
+  let titleText: string | undefined;
+  let bodyText: string | undefined;
+  let background: string | undefined;
+
+  // h1/h2 color
+  const headingBlocks = findCssBlocks(allCss, [/(^|[ ,>])h1(\s|$|[.:#,])/, /(^|[ ,>])h2(\s|$|[.:#,])/]);
+  for (const b of headingBlocks) {
+    const c = findColorInBlock(b, "color");
+    if (c && !isNeutral(c)) { titleText = c; break; }
+    if (c && !titleText) titleText = c;
+  }
+
+  // body / p color & background
+  const bodyBlocks = findCssBlocks(allCss, [/(^|[ ,>])body(\s|$|[.:#,])/, /(^|[ ,>])html(\s|$|[.:#,])/]);
+  for (const b of bodyBlocks) {
+    if (!bodyText) {
+      const c = findColorInBlock(b, "color");
+      if (c) bodyText = c;
+    }
+    if (!background) {
+      const bg = findColorInBlock(b, "background-color") || findColorInBlock(b, "background");
+      if (bg) background = bg;
+    }
+  }
+
+  // Primary fallback: button / a background
+  if (!primary) {
+    const btnBlocks = findCssBlocks(allCss, [/(^|[ ,>])button(\s|$|[.:#,])/, /\.btn\b/, /\.button\b/]);
+    for (const b of btnBlocks) {
+      const bg = findColorInBlock(b, "background-color") || findColorInBlock(b, "background");
+      if (bg && !isNeutral(bg)) { primary = bg; break; }
+    }
+  }
+
+  // Last fallback: most frequent non-neutral hex in inline style attributes
+  if (!primary) {
+    const counts = new Map<string, number>();
+    $("[style]").each((_, el) => {
+      const s = $(el).attr("style") || "";
+      const matches = s.match(HEX_COLOR_RE);
+      if (matches) {
+        for (const c of matches) {
+          const h = normHex(c);
+          if (!isNeutral(h)) counts.set(h, (counts.get(h) || 0) + 1);
+        }
+      }
+    });
+    let best: string | undefined;
+    let bestN = 0;
+    for (const [h, n] of counts) {
+      if (n > bestN) { best = h; bestN = n; }
+    }
+    if (best) primary = best;
+  }
+
+  return {
+    primary: primary || DEFAULTS.primary,
+    titleText: titleText || DEFAULTS.titleText,
+    bodyText: bodyText || DEFAULTS.bodyText,
+    background: background || DEFAULTS.background,
+  };
+}
+
+function extractFontFamily($: cheerio.CheerioAPI): string {
+  let allCss = "";
+  $("style").each((_, el) => { allCss += "\n" + $(el).text(); });
+  const bodyBlocks = findCssBlocks(allCss, [/(^|[ ,>])body(\s|$|[.:#,])/]);
+  for (const b of bodyBlocks) {
+    const m = b.match(/font-family\s*:\s*([^;}\n]+)/i);
+    if (m) {
+      const ff = m[1].trim();
+      if (ff && ff.length < 200) {
+        // Append safe fallbacks
+        if (!/sans-serif|serif|monospace/i.test(ff)) {
+          return `${ff}, 'Helvetica Neue', Helvetica, Arial, sans-serif`;
+        }
+        return ff;
+      }
+    }
+  }
+  // Inline style fallback
+  const bodyStyle = $("body").attr("style") || "";
+  const m = bodyStyle.match(/font-family\s*:\s*([^;]+)/i);
+  if (m) return m[1].trim();
+  return DEFAULTS.fontFamily;
+}
+
+function buildSuggestedSubject($: cheerio.CheerioAPI, brandName?: string): string {
+  const desc = extractDescription($);
+  if (desc) return desc.length > 78 ? desc.slice(0, 75) + "..." : desc;
+  const title = $("title").first().text().trim();
+  if (title) return title.length > 78 ? title.slice(0, 75) + "..." : title;
+  return brandName ? `Novidades de ${brandName}` : "Novidades";
+}
+
+export async function fetchAndExtract(rawUrl: string): Promise<ExtractedBrand> {
+  const url = normalizeUrl(rawUrl);
+  await assertPublicHost(url.hostname);
+
+  const html = await fetchHtml(url);
+  const $ = cheerio.load(html);
+
+  const brandName = extractBrandName($, url);
+  const logoUrl = extractLogo($, url);
+  const colors = extractColors($);
+  const fontFamily = extractFontFamily($);
+  const suggestedSubject = buildSuggestedSubject($, brandName);
+  const suggestedTemplateName = brandName
+    ? `Template ${brandName}`
+    : `Template ${url.hostname}`;
+
+  return {
+    sourceUrl: url.toString(),
+    brandName,
+    logoUrl: isHttpUrl(logoUrl) ? logoUrl : undefined,
+    colors,
+    fontFamily,
+    suggestedSubject,
+    suggestedTemplateName,
+  };
+}

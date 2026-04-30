@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmModal, EmailPreviewModal } from "../components/ui";
 import { Button } from "../components/ui";
-import { Plus, FileText, Copy, Trash2, Edit, Loader2, Eye } from "lucide-react";
+import { Plus, FileText, Copy, Trash2, Edit, Loader2, Eye, Wand2 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useTemplates, useDeleteTemplate, useDuplicateTemplate, useToast } from "../hooks";
 import type { EmailTemplate } from "../types";
@@ -62,7 +62,11 @@ export function TemplatesPage() {
 
       <div className="p-6">
         {/* Actions */}
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => navigate("/templates/new/from-url")}>
+            <Wand2 className="mr-2 h-4 w-4" />
+            Gerar de URL
+          </Button>
           <Button onClick={() => navigate("/templates/new")}>
             <Plus className="mr-2 h-4 w-4" />
             {t.templates.newTemplate}

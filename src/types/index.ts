@@ -137,6 +137,33 @@ export interface EmailTemplateFormData {
   defaultVariables?: Record<string, string>;
 }
 
+// Brand extraction from URL
+export interface ExtractedBrand {
+  sourceUrl: string;
+  logoUrl?: string;
+  brandName?: string;
+  colors: {
+    primary: string;
+    titleText: string;
+    bodyText: string;
+    background: string;
+  };
+  fontFamily: string;
+  suggestedSubject: string;
+  suggestedTemplateName: string;
+}
+
+export interface GenerateTemplateFromUrlRequest {
+  url: string;
+}
+
+export interface GenerateTemplateFromUrlResponse {
+  html: string;
+  brand: ExtractedBrand;
+  suggestedSubject: string;
+  suggestedTemplateName: string;
+}
+
 // Sent email log
 export interface SentEmail {
   id: string;
