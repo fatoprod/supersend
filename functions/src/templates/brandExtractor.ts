@@ -271,12 +271,19 @@ function rgbToHex(rgb: string): string | undefined {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-function findColorInBlock(block: string, prop: "color" | "background-color" | "background"): string | undefined {
+function findColorInBlock(
+  block: string,
+  prop: "color" | "background-color" | "background",
+  cssVars?: Record<string, string>,
+): string | undefined {
   // Match `prop: <value>;`
-  const re = new RegExp(`${prop}\\s*:\\s*([^;}\\n]+)`, "i");
+  const re = new RegExp(`(?:^|[;{\\s])${prop}\\s*:\\s*([^;}\\n]+)`, "i");
   const m = block.match(re);
   if (!m) return undefined;
-  const val = m[1].trim();
+  let val = m[1].trim();
+  if (cssVars && /var\(/.test(val)) {
+    val = resolveCssVarValue(val, cssVars);
+  }
   const hex = val.match(HEX_COLOR_RE);
   if (hex && hex[0]) return normHex(hex[0]);
   const rgb = rgbToHex(val);
@@ -302,7 +309,10 @@ function findCssBlocks(css: string, selectors: RegExp[]): string[] {
   return blocks;
 }
 
-function extractColors($: cheerio.CheerioAPI): {
+function extractColors(
+  $: cheerio.CheerioAPI,
+  cssText: string,
+): {
   primary: string; titleText: string; bodyText: string; background: string;
 } {
   const themeColor = $('meta[name="theme-color"]').attr("content")?.trim();
@@ -316,18 +326,19 @@ function extractColors($: cheerio.CheerioAPI): {
     }
   }
 
-  // Aggregate all <style> contents
-  let allCss = "";
-  $("style").each((_, el) => { allCss += "\n" + $(el).text(); });
+  const allCss = cssText;
 
   let titleText: string | undefined;
   let bodyText: string | undefined;
   let background: string | undefined;
 
+  // CSS custom properties from :root
+  const rootVars = extractCssVars(allCss);
+
   // h1/h2 color
   const headingBlocks = findCssBlocks(allCss, [/(^|[ ,>])h1(\s|$|[.:#,])/, /(^|[ ,>])h2(\s|$|[.:#,])/]);
   for (const b of headingBlocks) {
-    const c = findColorInBlock(b, "color");
+    const c = findColorInBlock(b, "color", rootVars);
     if (c && !isNeutral(c)) { titleText = c; break; }
     if (c && !titleText) titleText = c;
   }
@@ -336,20 +347,41 @@ function extractColors($: cheerio.CheerioAPI): {
   const bodyBlocks = findCssBlocks(allCss, [/(^|[ ,>])body(\s|$|[.:#,])/, /(^|[ ,>])html(\s|$|[.:#,])/]);
   for (const b of bodyBlocks) {
     if (!bodyText) {
-      const c = findColorInBlock(b, "color");
+      const c = findColorInBlock(b, "color", rootVars);
       if (c) bodyText = c;
     }
     if (!background) {
-      const bg = findColorInBlock(b, "background-color") || findColorInBlock(b, "background");
+      const bg = findColorInBlock(b, "background-color", rootVars) || findColorInBlock(b, "background", rootVars);
       if (bg) background = bg;
+    }
+  }
+
+  // Inline style on <body> as another fallback
+  if (!background) {
+    const bodyStyle = $("body").attr("style") || "";
+    const bg = findColorInBlock(bodyStyle, "background-color", rootVars) || findColorInBlock(bodyStyle, "background", rootVars);
+    if (bg) background = bg;
+  }
+  if (!bodyText) {
+    const bodyStyle = $("body").attr("style") || "";
+    const c = findColorInBlock(bodyStyle, "color", rootVars);
+    if (c) bodyText = c;
+  }
+
+  // Primary from CSS custom properties hinting "primary/brand/accent/main"
+  if (!primary) {
+    for (const [name, val] of Object.entries(rootVars)) {
+      if (/primary|brand|accent|main|theme/i.test(name)) {
+        if (!isNeutral(val)) { primary = val; break; }
+      }
     }
   }
 
   // Primary fallback: button / a background
   if (!primary) {
-    const btnBlocks = findCssBlocks(allCss, [/(^|[ ,>])button(\s|$|[.:#,])/, /\.btn\b/, /\.button\b/]);
+    const btnBlocks = findCssBlocks(allCss, [/(^|[ ,>])button(\s|$|[.:#,])/, /\.btn\b/, /\.button\b/, /\.cta\b/, /\bprimary\b/]);
     for (const b of btnBlocks) {
-      const bg = findColorInBlock(b, "background-color") || findColorInBlock(b, "background");
+      const bg = findColorInBlock(b, "background-color", rootVars) || findColorInBlock(b, "background", rootVars);
       if (bg && !isNeutral(bg)) { primary = bg; break; }
     }
   }
@@ -383,28 +415,147 @@ function extractColors($: cheerio.CheerioAPI): {
   };
 }
 
-function extractFontFamily($: cheerio.CheerioAPI): string {
-  let allCss = "";
-  $("style").each((_, el) => { allCss += "\n" + $(el).text(); });
-  const bodyBlocks = findCssBlocks(allCss, [/(^|[ ,>])body(\s|$|[.:#,])/]);
+function extractFontFamily($: cheerio.CheerioAPI, cssText: string): string {
+  const allCss = cssText;
+  const bodyBlocks = findCssBlocks(allCss, [/(^|[ ,>])body(\s|$|[.:#,])/, /(^|[ ,>])html(\s|$|[.:#,])/]);
   for (const b of bodyBlocks) {
     const m = b.match(/font-family\s*:\s*([^;}\n]+)/i);
     if (m) {
-      const ff = m[1].trim();
-      if (ff && ff.length < 200) {
-        // Append safe fallbacks
-        if (!/sans-serif|serif|monospace/i.test(ff)) {
-          return `${ff}, 'Helvetica Neue', Helvetica, Arial, sans-serif`;
-        }
-        return ff;
+      const ff = sanitizeFontFamily(m[1]);
+      if (ff) return ff;
+    }
+  }
+  // CSS variables --font-* / --font-family-*
+  const rootVars = extractCssVars(allCss);
+  for (const [name, val] of Object.entries(rootVars)) {
+    if (/font[-_]?(family|sans|main|primary|body)/i.test(name) && /[a-z]/i.test(val)) {
+      const ff = sanitizeFontFamily(val);
+      if (ff) return ff;
+    }
+  }
+  // Inline body style
+  const bodyStyle = $("body").attr("style") || "";
+  const m = bodyStyle.match(/font-family\s*:\s*([^;]+)/i);
+  if (m) {
+    const ff = sanitizeFontFamily(m[1]);
+    if (ff) return ff;
+  }
+  return DEFAULTS.fontFamily;
+}
+
+function sanitizeFontFamily(raw: string): string | undefined {
+  let ff = raw.trim().replace(/!important/i, "").trim();
+  if (!ff) return undefined;
+  // Strip CSS var() wrappers
+  ff = ff.replace(/var\([^)]+\)\s*,?\s*/g, "").trim().replace(/^,|,$/g, "");
+  if (!ff || ff.length > 200) return undefined;
+  if (!/sans-serif|serif|monospace/i.test(ff)) {
+    return `${ff}, 'Helvetica Neue', Helvetica, Arial, sans-serif`;
+  }
+  return ff;
+}
+
+const CSS_VAR_RE = /--([a-z0-9_-]+)\s*:\s*([^;}\n]+)/gi;
+
+/** Extract CSS custom properties from `:root { --x: val; }` blocks. Resolves to hex when value is a color. */
+function extractCssVars(css: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  // Find :root or html { } blocks
+  const re = /(?::root|html|\[data-theme[^\]]*\])\s*\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) !== null) {
+    const body = m[1];
+    let v: RegExpExecArray | null;
+    CSS_VAR_RE.lastIndex = 0;
+    while ((v = CSS_VAR_RE.exec(body)) !== null) {
+      const name = v[1];
+      const val = v[2].trim();
+      const hex = val.match(HEX_COLOR_RE);
+      if (hex && hex[0]) {
+        out[name] = normHex(hex[0]);
+      } else {
+        const rgb = rgbToHex(val);
+        if (rgb) out[name] = normHex(rgb);
+        else out[name] = val;
       }
     }
   }
-  // Inline style fallback
-  const bodyStyle = $("body").attr("style") || "";
-  const m = bodyStyle.match(/font-family\s*:\s*([^;]+)/i);
-  if (m) return m[1].trim();
-  return DEFAULTS.fontFamily;
+  return out;
+}
+
+/** Recursive resolve of var(--x, fallback) using a cssVars map. */
+function resolveCssVarValue(value: string, vars: Record<string, string>, depth = 0): string {
+  if (depth > 4) return value;
+  return value.replace(/var\(\s*--([a-z0-9_-]+)\s*(?:,\s*([^)]*))?\)/gi, (_m, name, fallback) => {
+    const v = vars[name];
+    if (v) return resolveCssVarValue(v, vars, depth + 1);
+    if (fallback) return resolveCssVarValue(fallback.trim(), vars, depth + 1);
+    return "";
+  });
+}
+
+async function fetchExternalCss($: cheerio.CheerioAPI, base: URL): Promise<string> {
+  const links: string[] = [];
+  $('link[rel="stylesheet"][href], link[rel*="preload" i][as="style"][href]').each((_, el) => {
+    const href = $(el).attr("href");
+    const abs = absolutize(href, base);
+    if (abs && isHttpUrl(abs)) links.push(abs);
+  });
+  // Dedupe and cap
+  const unique = [...new Set(links)].slice(0, 5);
+
+  const MAX_CSS_BYTES = 600 * 1024;
+  const CSS_TIMEOUT_MS = 5000;
+
+  const fetchOne = async (cssUrl: string): Promise<string> => {
+    try {
+      const u = new URL(cssUrl);
+      // SSRF check on external CSS host too
+      try { await assertPublicHost(u.hostname); } catch { return ""; }
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), CSS_TIMEOUT_MS);
+      try {
+        const res = await fetch(cssUrl, {
+          headers: {
+            "user-agent": USER_AGENT,
+            "accept": "text/css,*/*;q=0.1",
+          },
+          signal: ctrl.signal,
+          redirect: "follow",
+        });
+        if (!res.ok) return "";
+        const ct = res.headers.get("content-type") || "";
+        if (ct && !/css|text|javascript/i.test(ct)) return "";
+        const reader = res.body?.getReader();
+        if (!reader) {
+          const txt = await res.text();
+          return txt.slice(0, MAX_CSS_BYTES);
+        }
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            total += value.length;
+            if (total > MAX_CSS_BYTES) {
+              try { await reader.cancel(); } catch {/* ignore */}
+              break;
+            }
+            chunks.push(value);
+          }
+        }
+        return Buffer.concat(chunks.map(c => Buffer.from(c))).toString("utf-8");
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch {
+      return "";
+    }
+  };
+
+  const results = await Promise.all(unique.map(fetchOne));
+  return results.join("\n");
 }
 
 function buildSuggestedSubject($: cheerio.CheerioAPI, brandName?: string): string {
@@ -422,10 +573,16 @@ export async function fetchAndExtract(rawUrl: string): Promise<ExtractedBrand> {
   const html = await fetchHtml(url);
   const $ = cheerio.load(html);
 
+  // Aggregate inline <style> + external stylesheets for richer extraction
+  let inlineCss = "";
+  $("style").each((_, el) => { inlineCss += "\n" + $(el).text(); });
+  const externalCss = await fetchExternalCss($, url);
+  const cssText = inlineCss + "\n" + externalCss;
+
   const brandName = extractBrandName($, url);
   const logoUrl = extractLogo($, url);
-  const colors = extractColors($);
-  const fontFamily = extractFontFamily($);
+  const colors = extractColors($, cssText);
+  const fontFamily = extractFontFamily($, cssText);
   const suggestedSubject = buildSuggestedSubject($, brandName);
   const suggestedTemplateName = brandName
     ? `Template ${brandName}`

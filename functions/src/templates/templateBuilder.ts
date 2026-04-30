@@ -11,39 +11,53 @@ const EMAIL_BASE_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
   <title>{{subject}}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: __BACKGROUND__; font-family: __FONT_FAMILY__; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: __BACKGROUND__; padding: 24px 0;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: __BACKGROUND__; padding: 32px 0;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);">
+        <!--[if mso]>
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" align="center"><tr><td>
+        <![endif]-->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);">
           <tr>
-            <td style="background-color: __PRIMARY__; padding: 32px 40px; text-align: center;">
-              <img src="{{logo_url}}" alt="{{company}}" width="{{logo_width}}" height="auto" style="display: block; margin: 0 auto; max-width: {{logo_width}}px; height: auto;" />
-              <p style="margin: 12px 0 0 0; font-size: 14px; color: #ffffff; opacity: 0.85; letter-spacing: 0.5px;">{{company}}</p>
+            <td style="background-color: __PRIMARY__; padding: 40px 40px 36px 40px; text-align: center; border-radius: 16px 16px 0 0;">
+              <img src="{{logo_url}}" alt="{{company}}" width="{{logo_width}}" height="auto" style="display: block; margin: 0 auto; max-width: {{logo_width}}px; height: auto; border-radius: 8px;" />
+              <p style="margin: 14px 0 0 0; font-size: 14px; color: #ffffff; opacity: 0.9; letter-spacing: 0.5px; font-weight: 500;">{{company}}</p>
             </td>
           </tr>
           <tr>
-            <td style="padding: 40px 40px 32px 40px;">
-              <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 700; color: __TITLE_COLOR__; line-height: 1.3;">{{title}}</h1>
-              <p style="margin: 0 0 24px 0; font-size: 16px; color: __BODY_COLOR__; line-height: 1.6;">{{content}}</p>
+            <td style="padding: 44px 44px 36px 44px;">
+              <h1 style="margin: 0 0 18px 0; font-size: 26px; font-weight: 700; color: __TITLE_COLOR__; line-height: 1.3;">{{title}}</h1>
+              <p style="margin: 0 0 28px 0; font-size: 16px; color: __BODY_COLOR__; line-height: 1.65;">{{content}}</p>
+              <!-- CTA Button (with MSO VML rounded fallback for Outlook desktop) -->
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 8px 0 0 0;">
                 <tr>
-                  <td style="border-radius: 6px; background-color: __PRIMARY__;">
-                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px;">{{cta_text}}</a>
+                  <td>
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{cta_url}}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="22%" stroke="f" fillcolor="__PRIMARY__">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:600;">{{cta_text}}</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a href="{{cta_url}}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; background-color: __PRIMARY__; border-radius: 10px; mso-hide: all;">{{cta_text}}</a>
+                    <!--<![endif]-->
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td style="padding: 0 40px;">
+            <td style="padding: 0 44px;">
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0;" />
             </td>
           </tr>
           <tr>
-            <td style="padding: 24px 40px 32px 40px; text-align: center;">
+            <td style="padding: 28px 44px 36px 44px; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">
                 Você recebeu este email porque está inscrito em {{company}}.
               </p>
@@ -56,6 +70,9 @@ const EMAIL_BASE_HTML = `<!DOCTYPE html>
             </td>
           </tr>
         </table>
+        <!--[if mso]>
+        </td></tr></table>
+        <![endif]-->
       </td>
     </tr>
   </table>
