@@ -1,12 +1,8 @@
 import Mailgun from "mailgun.js";
 import FormData from "form-data";
-import { defineString } from "firebase-functions/params";
 import * as https from "https";
 import * as http from "http";
-
-// Define config parameters
-const mailgunApiKey = defineString("MAILGUN_API_KEY");
-const mailgunDomain = defineString("MAILGUN_DOMAIN");
+import { getMailgunConfig } from "./mailgunConfig";
 
 // Initialize Mailgun client
 const mailgun = new Mailgun(FormData);
@@ -56,12 +52,16 @@ interface BulkEmailResult {
  */
 export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
   try {
+    const cfg = await getMailgunConfig();
+    if (!cfg.apiKey || !cfg.domain) {
+      return { success: false, error: "Mailgun não configurado (apiKey/domain ausente). Configure em /settings → Mailgun." };
+    }
     const mg = mailgun.client({
       username: "api",
-      key: mailgunApiKey.value(),
+      key: cfg.apiKey,
     });
 
-    const result = await mg.messages.create(mailgunDomain.value(), {
+    const result = await mg.messages.create(cfg.domain, {
       from: options.from,
       to: [options.to],
       subject: options.subject,
@@ -94,10 +94,21 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
 export async function sendBulkEmails(options: BulkEmailOptions): Promise<BulkEmailResult> {
   const results: BulkEmailResult["results"] = [];
   const batchSize = 50; // Mailgun recommends max 1000 per batch
-  
+
+  const cfg = await getMailgunConfig();
+  if (!cfg.apiKey || !cfg.domain) {
+    return {
+      results: options.recipients.map((to) => ({
+        to,
+        success: false,
+        error: "Mailgun não configurado (apiKey/domain ausente). Configure em /settings → Mailgun.",
+      })),
+    };
+  }
+
   const mg = mailgun.client({
     username: "api",
-    key: mailgunApiKey.value(),
+    key: cfg.apiKey,
   });
 
   // Process in batches
@@ -108,7 +119,7 @@ export async function sendBulkEmails(options: BulkEmailOptions): Promise<BulkEma
     const batchResults = await Promise.all(
       batch.map(async (recipient) => {
         try {
-          const result = await mg.messages.create(mailgunDomain.value(), {
+          const result = await mg.messages.create(cfg.domain, {
             from: options.from,
             to: [recipient],
             subject: options.subject,

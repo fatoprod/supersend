@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "../components/layout";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
 import { useAuth, useToast, useSettings, useUpdateSettings, useChangePassword } from "../hooks";
-import { Save, User, Mail, Key, Bell, Shield, Globe, Loader2 } from "lucide-react";
+import { Save, User, Mail, Key, Bell, Shield, Globe, Loader2, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from "lucide-react";
 import { useI18n } from "../i18n";
+import {
+  getMailgunSettings,
+  updateMailgunSettings,
+  checkMailgunDns,
+  type MailgunSettings,
+  type DnsCheckResponse,
+} from "../lib/services/mailgunSettings";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -31,6 +38,28 @@ export function SettingsPage() {
   });
   const [initialized, setInitialized] = useState(false);
 
+  // Mailgun config state
+  const [mgLoading, setMgLoading] = useState(false);
+  const [mgSaving, setMgSaving] = useState(false);
+  const [mgSettings, setMgSettings] = useState<MailgunSettings | null>(null);
+  const [mgDomain, setMgDomain] = useState("");
+  const [mgApiKey, setMgApiKey] = useState("");
+  const [mgWebhookKey, setMgWebhookKey] = useState("");
+  const [dnsLoading, setDnsLoading] = useState(false);
+  const [dnsResult, setDnsResult] = useState<DnsCheckResponse | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== "api" || mgSettings) return;
+    setMgLoading(true);
+    getMailgunSettings()
+      .then((s) => {
+        setMgSettings(s);
+        setMgDomain(s.domain || "");
+      })
+      .catch((err) => toast.error("Mailgun", String(err?.message || err)))
+      .finally(() => setMgLoading(false));
+  }, [activeTab, mgSettings, toast]);
+
   // Initialize form with settings data
   if (settings && !initialized) {
     setDisplayName(settings.displayName || user?.displayName || "");
@@ -49,7 +78,7 @@ export function SettingsPage() {
     { id: "email", label: t.settings.emailSettings, icon: Mail },
     { id: "security", label: t.settings.security, icon: Shield },
     { id: "notifications", label: t.settings.notifications, icon: Bell },
-    { id: "api", label: t.settings.apiKeys, icon: Key },
+    { id: "api", label: "Mailgun", icon: Key },
   ];
 
   const handleSaveProfile = async () => {
@@ -101,6 +130,46 @@ export function SettingsPage() {
       toast.success(t.settings.settingsSaved, t.settings.changesSaved);
     } catch (error) {
       toast.error("Error", String(error));
+    }
+  };
+
+  const handleSaveMailgun = async () => {
+    setMgSaving(true);
+    try {
+      await updateMailgunSettings({
+        domain: mgDomain.trim() || undefined,
+        apiKey: mgApiKey.trim() || undefined,
+        webhookSigningKey: mgWebhookKey.trim() || undefined,
+      });
+      toast.success("Mailgun atualizado", "Configurações salvas com sucesso");
+      setMgApiKey("");
+      setMgWebhookKey("");
+      // refresh masked view
+      const s = await getMailgunSettings();
+      setMgSettings(s);
+      setMgDomain(s.domain || "");
+    } catch (err) {
+      toast.error("Erro ao salvar Mailgun", String((err as Error)?.message || err));
+    } finally {
+      setMgSaving(false);
+    }
+  };
+
+  const handleCheckDns = async () => {
+    const domain = mgDomain.trim();
+    if (!domain) {
+      toast.error("Informe o domínio Mailgun primeiro");
+      return;
+    }
+    setDnsLoading(true);
+    setDnsResult(null);
+    try {
+      const res = await checkMailgunDns(domain);
+      setDnsResult(res);
+    } catch (err) {
+      toast.error("Erro ao verificar DNS", String((err as Error)?.message || err));
+    } finally {
+      setDnsLoading(false);
     }
   };
 
@@ -373,55 +442,139 @@ export function SettingsPage() {
             {activeTab === "api" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>{t.settings.apiKeysTitle}</CardTitle>
+                  <CardTitle>Mailgun</CardTitle>
                   <CardDescription>
-                    {t.settings.apiKeysDescription}
+                    Configure a API e o domínio do Mailgun usados para envio. Se deixar em branco, a aplicação usa as variáveis de ambiente das Cloud Functions.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-border p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-text">{t.settings.productionApiKey}</p>
-                          <p className="mt-1 font-mono text-sm text-text-muted">
-                            sk_live_••••••••••••••••
+                  {mgLoading && !mgSettings ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {mgSettings && (
+                        <div className="rounded-md border border-border bg-bg-subtle p-3 text-sm text-text-muted">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-text">Origem atual:</span>
+                            <span className="rounded bg-bg-muted px-2 py-0.5 font-mono text-xs">
+                              {mgSettings.source}
+                            </span>
+                          </div>
+                          <p className="mt-1">
+                            Domínio: <span className="font-mono">{mgSettings.domain || "(não definido)"}</span>
+                          </p>
+                          <p>
+                            API Key: <span className="font-mono">{mgSettings.apiKeyMasked || "(não definido)"}</span>
+                          </p>
+                          <p>
+                            Webhook Signing Key: <span className="font-mono">{mgSettings.webhookSigningKeyMasked || "(não definido)"}</span>
                           </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" size="sm">
-                            {t.common.copy}
+                      )}
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">Domínio Mailgun</label>
+                          <Input
+                            type="text"
+                            placeholder="mg.seudominio.com.br"
+                            value={mgDomain}
+                            onChange={(e) => setMgDomain(e.target.value)}
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Ex.: <code className="font-mono">mg.supervideo.com.br</code>
+                          </p>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">API Key</label>
+                          <Input
+                            type="password"
+                            placeholder={mgSettings?.hasApiKey ? "(deixe em branco para manter)" : "key-xxxxxxxx..."}
+                            value={mgApiKey}
+                            onChange={(e) => setMgApiKey(e.target.value)}
+                            autoComplete="off"
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Encontre em Mailgun → Send → Sending → Domain settings → API security.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-text">Webhook Signing Key</label>
+                          <Input
+                            type="password"
+                            placeholder={mgSettings?.hasWebhookSigningKey ? "(deixe em branco para manter)" : "key-xxxxxxxx..."}
+                            value={mgWebhookKey}
+                            onChange={(e) => setMgWebhookKey(e.target.value)}
+                            autoComplete="off"
+                          />
+                          <p className="mt-1 text-xs text-text-muted">
+                            Em Mailgun → Send → Sending → Webhooks → HTTP webhook signing key.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button onClick={handleSaveMailgun} disabled={mgSaving}>
+                            {mgSaving ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="mr-2 h-4 w-4" />
+                            )}
+                            Salvar Mailgun
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            {t.settings.regenerate}
+                          <Button variant="secondary" onClick={handleCheckDns} disabled={dnsLoading || !mgDomain.trim()}>
+                            {dnsLoading ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            Verificar DNS
                           </Button>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="rounded-lg border border-border p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-text">{t.settings.testApiKey}</p>
-                          <p className="mt-1 font-mono text-sm text-text-muted">
-                            sk_test_••••••••••••••••
-                          </p>
+                      {dnsResult && (
+                        <div className="rounded-md border border-border">
+                          <div className="border-b border-border bg-bg-subtle px-4 py-2 text-sm">
+                            <span className="font-medium text-text">Diagnóstico DNS</span>
+                            <span className="ml-2 text-text-muted">
+                              domínio=<code className="font-mono">{dnsResult.domain}</code> · apex=<code className="font-mono">{dnsResult.apex}</code>
+                            </span>
+                          </div>
+                          <ul className="divide-y divide-border">
+                            {dnsResult.checks.map((c, i) => (
+                              <li key={i} className="px-4 py-3 text-sm">
+                                <div className="flex items-start gap-2">
+                                  <span className="mt-0.5">
+                                    {c.status === "ok" ? (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    ) : c.status === "warn" ? (
+                                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4 text-red-600" />
+                                    )}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-text">{c.name}</p>
+                                    <p className="text-xs text-text-muted">Esperado: <span className="font-mono">{c.expected}</span></p>
+                                    {c.actual.length > 0 && (
+                                      <p className="mt-1 break-all text-xs text-text-muted">
+                                        Atual: <span className="font-mono">{c.actual.join(" | ")}</span>
+                                      </p>
+                                    )}
+                                    {c.message && (
+                                      <p className="mt-1 text-xs text-yellow-700">{c.message}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" size="sm">
-                            {t.common.copy}
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            {t.settings.regenerate}
-                          </Button>
-                        </div>
-                      </div>
+                      )}
                     </div>
-
-                    <Button>
-                      {t.settings.generateNewApiKey}
-                    </Button>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             )}

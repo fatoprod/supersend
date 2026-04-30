@@ -2,7 +2,13 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
 import { defineString } from "firebase-functions/params";
+import * as dns from "dns/promises";
 import { sendEmail } from "./email/mailgun";
+import {
+  getMailgunConfig,
+  invalidateMailgunConfigCache,
+  maskSecret,
+} from "./email/mailgunConfig";
 import { buildSentEmailRecord, executeCampaignSend } from "./email/campaignHelper";
 import { verifyEmailCode, sendVerificationEmail } from "./auth/verification";
 import { verifyWebhookSignature, processWebhookEvent } from "./email/webhooks";
@@ -20,8 +26,9 @@ admin.initializeApp();
 // Export named Firestore database instance
 export const db = getFirestore("supersend-bd");
 
-// Mailgun webhook signing key
+// Mailgun webhook signing key (legacy env fallback — UI/Firestore is now primary)
 const mailgunWebhookSigningKey = defineString("MAILGUN_WEBHOOK_SIGNING_KEY");
+void mailgunWebhookSigningKey; // referenced by mailgunConfig fallback path
 
 // ============ Auth Functions ============
 
@@ -430,7 +437,7 @@ export const mailgunWebhook = functions.https.onRequest(async (req, res) => {
     }
 
     const isValid = verifyWebhookSignature(
-      mailgunWebhookSigningKey.value(),
+      (await getMailgunConfig()).webhookSigningKey,
       timestamp,
       token,
       signature
@@ -450,3 +457,209 @@ export const mailgunWebhook = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Internal error");
   }
 });
+
+// ============ Mailgun Configuration ============
+
+/** Get Mailgun config (masked secrets) for the Settings UI. */
+export const getMailgunSettings = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const cfg = await getMailgunConfig();
+  return {
+    domain: cfg.domain || "",
+    apiKeyMasked: maskSecret(cfg.apiKey),
+    hasApiKey: !!cfg.apiKey,
+    webhookSigningKeyMasked: maskSecret(cfg.webhookSigningKey),
+    hasWebhookSigningKey: !!cfg.webhookSigningKey,
+    source: cfg.source,
+  };
+});
+
+/** Update Mailgun config in Firestore. Empty/undefined values clear that field. */
+export const updateMailgunSettings = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const { apiKey, domain, webhookSigningKey } = (data || {}) as {
+    apiKey?: string;
+    domain?: string;
+    webhookSigningKey?: string;
+  };
+
+  const ref = db.collection("system").doc("mailgun");
+  const update: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: context.auth.uid,
+  };
+  if (typeof apiKey === "string" && apiKey.trim()) update.apiKey = apiKey.trim();
+  if (typeof domain === "string" && domain.trim()) update.domain = domain.trim();
+  if (typeof webhookSigningKey === "string" && webhookSigningKey.trim()) {
+    update.webhookSigningKey = webhookSigningKey.trim();
+  }
+  await ref.set(update, { merge: true });
+  invalidateMailgunConfigCache();
+  return { success: true };
+});
+
+interface DnsCheck {
+  name: string;
+  expected: string;
+  actual: string[];
+  status: "ok" | "warn" | "missing";
+  message?: string;
+}
+
+/** Run DNS health check for a Mailgun-managed domain (e.g. mg.supervideo.com.br).
+ *  Also checks SPF and DMARC at the apex (organizational domain). */
+export const checkMailgunDns = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Auth required");
+  }
+  const domain = String((data || {}).domain || "").trim().toLowerCase();
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+    throw new functions.https.HttpsError("invalid-argument", "Invalid domain");
+  }
+  // Derive apex (last 2 labels for .com / 3 for .com.br style)
+  const apex = deriveApex(domain);
+
+  const checks: DnsCheck[] = [];
+
+  // 1. MX
+  try {
+    const mx = await dns.resolveMx(domain);
+    const hosts = mx.map((m) => m.exchange.toLowerCase());
+    const hasA = hosts.some((h) => h.includes("mxa.mailgun.org"));
+    const hasB = hosts.some((h) => h.includes("mxb.mailgun.org"));
+    checks.push({
+      name: "MX",
+      expected: "mxa.mailgun.org, mxb.mailgun.org",
+      actual: hosts,
+      status: hasA && hasB ? "ok" : "warn",
+      message: hasA && hasB ? undefined : "Esperado mxa.mailgun.org E mxb.mailgun.org",
+    });
+  } catch {
+    checks.push({ name: "MX", expected: "mxa.mailgun.org, mxb.mailgun.org", actual: [], status: "missing" });
+  }
+
+  // 2. SPF on subdomain
+  const subSpf = await getTxt(domain);
+  const subSpfLine = subSpf.find((s) => /v=spf1/i.test(s)) || "";
+  checks.push({
+    name: `SPF (${domain})`,
+    expected: "v=spf1 include:mailgun.org ~all",
+    actual: subSpfLine ? [subSpfLine] : [],
+    status: /include:mailgun\.org/i.test(subSpfLine) ? "ok" : subSpfLine ? "warn" : "missing",
+  });
+
+  // 3. DKIM — try common Mailgun selectors
+  const dkimSelectors = ["krs", "k1", "mailo", "pic", "smtp", "mta"];
+  let dkimFound: { selector: string; value: string } | null = null;
+  for (const s of dkimSelectors) {
+    const r = await getTxt(`${s}._domainkey.${domain}`);
+    const line = r.find((x) => /k=rsa/i.test(x) || /p=[A-Za-z0-9+/=]/.test(x));
+    if (line) {
+      dkimFound = { selector: s, value: line };
+      break;
+    }
+  }
+  checks.push({
+    name: "DKIM",
+    expected: "TXT em <selector>._domainkey." + domain,
+    actual: dkimFound ? [`selector=${dkimFound.selector}`] : [],
+    status: dkimFound ? "ok" : "missing",
+    message: dkimFound ? `Selector ativo: ${dkimFound.selector}` : "Nenhum selector Mailgun encontrado",
+  });
+
+  // 4. Tracking CNAME
+  try {
+    const cname = await dns.resolveCname(`email.${domain}`);
+    const ok = cname.some((c) => c.toLowerCase().includes("mailgun.org"));
+    checks.push({
+      name: `CNAME (email.${domain})`,
+      expected: "mailgun.org",
+      actual: cname,
+      status: ok ? "ok" : "warn",
+    });
+  } catch {
+    checks.push({
+      name: `CNAME (email.${domain})`,
+      expected: "mailgun.org",
+      actual: [],
+      status: "missing",
+      message: "Tracking de cliques/aberturas não funcionará sem este CNAME",
+    });
+  }
+
+  // 5. SPF apex
+  const apexSpf = await getTxt(apex);
+  const apexSpfLine = apexSpf.find((s) => /v=spf1/i.test(s)) || "";
+  checks.push({
+    name: `SPF apex (${apex})`,
+    expected: "v=spf1 include:mailgun.org ~all (ou mesclado com outros)",
+    actual: apexSpfLine ? [apexSpfLine] : [],
+    status: /include:mailgun\.org/i.test(apexSpfLine)
+      ? "ok"
+      : apexSpfLine
+      ? "warn"
+      : "missing",
+    message:
+      !apexSpfLine
+        ? `CRÍTICO se From=...@${apex}: adicione SPF no apex`
+        : !/include:mailgun\.org/i.test(apexSpfLine)
+        ? `SPF apex existe mas sem include:mailgun.org`
+        : undefined,
+  });
+
+  // 6. DMARC apex
+  const dmarcApex = await getTxt(`_dmarc.${apex}`);
+  const dmarcLine = dmarcApex.find((s) => /v=DMARC1/i.test(s)) || "";
+  checks.push({
+    name: `DMARC apex (_dmarc.${apex})`,
+    expected: "v=DMARC1; p=none; rua=mailto:...",
+    actual: dmarcLine ? [dmarcLine] : [],
+    status: dmarcLine ? "ok" : "missing",
+    message: !dmarcLine ? "Adicione DMARC no apex para alinhamento e relatórios" : undefined,
+  });
+
+  // 7. DMARC subdomain (informativo)
+  const dmarcSub = await getTxt(`_dmarc.${domain}`);
+  const dmarcSubLine = dmarcSub.find((s) => /v=DMARC1/i.test(s)) || "";
+  if (dmarcSubLine) {
+    checks.push({
+      name: `DMARC sub (_dmarc.${domain})`,
+      expected: "(opcional, herda do apex se ausente)",
+      actual: [dmarcSubLine],
+      status: "ok",
+    });
+  }
+
+  return { domain, apex, checks };
+});
+
+async function getTxt(host: string): Promise<string[]> {
+  try {
+    const records = await dns.resolveTxt(host);
+    return records.map((r) => r.join(""));
+  } catch {
+    return [];
+  }
+}
+
+/** Derive the organizational domain (eTLD+1).
+ *  Handles common multi-label TLDs like .com.br, .co.uk, .com.au. */
+function deriveApex(host: string): string {
+  const parts = host.split(".");
+  if (parts.length <= 2) return host;
+  const twoLabel = parts.slice(-2).join(".");
+  const threeLabel = parts.slice(-3).join(".");
+  const multiTlds = [
+    "com.br", "net.br", "org.br", "gov.br", "edu.br",
+    "co.uk", "ac.uk", "gov.uk", "org.uk",
+    "com.au", "net.au", "org.au",
+    "co.jp", "ne.jp", "or.jp",
+    "com.mx", "com.ar", "com.co",
+  ];
+  if (multiTlds.includes(twoLabel)) return threeLabel;
+  return twoLabel;
+}

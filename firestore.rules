@@ -37,5 +37,11 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if false; // Only functions can write
     }
+
+    // System-wide config (Mailgun, etc.) — any authenticated user can read/manage.
+    // For multi-admin deployments, narrow this to specific UIDs.
+    match /system/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
